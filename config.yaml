@@ -16,7 +16,7 @@ smb:
   share: config
   username: username  # CHANGE THIS ! (Or use environment variable)
   password: password  # CHANGE THIS ! (Or use environment variable)
-  remote_path: /www/weather_gif  # Create this directory on Home Assistant under /www
+  remote_path: /www/bom_radar_downloader  # Create this directory on Home Assistant under /www
 
 # Radar Layers - add or remove to your liking
 layers:
@@ -39,4 +39,5 @@ gif:
 
 # Logging
 logging:
+
   level: INFO  # DEBUG, INFO, WARNING, ERROR
