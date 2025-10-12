@@ -1,38 +1,38 @@
 # Radar Configuration
 radar:
-  product_id: IDR952
-  timezone: Australia/Melbourne
+  product_id: IDR952  # Change this to your BoM Product ID
+  timezone: Australia/Melbourne # Change this to your timezone
 
-# Scheduler Configuration
+# Scheduler Configuration - can be left untouched
 scheduler:
   enabled: true
   update_interval: 600  # Seconds between updates (600 = 10 minutes)
   retry_on_error: true
   retry_interval: 60    # Seconds to wait before retry on error
 
-# SMB Share Configuration
+# Home Assistant SMB Share Configuration
 smb:
-  server: 192.168.1.95
+  server: 192.168.1.95 # CHANGE THIS !
   share: config
-  username: username  # Or use environment variable
-  password: password  # Or use environment variable
-  remote_path: /www/weather_gif
+  username: username  # CHANGE THIS ! (Or use environment variable)
+  password: password  # CHANGE THIS ! (Or use environment variable)
+  remote_path: /www/weather_gif  # Create this directory on Home Assistant under /www
 
-# Radar Layers
+# Radar Layers - add or remove to your liking
 layers:
   - background
 #  - catchments
 #  - topography
   - locations
 
-# Output Configuration
+# Output Configuration - can be left untouched
 output:
   directory: /images
   animated_gif: radar_animated.gif
   timestamp_file: radar_last_update.txt
   legend_file: /IDR.legend.0.png
 
-# GIF Settings
+# GIF Settings - con be left untouched
 gif:
   duration: 500  # Milliseconds per frame
   loop: 0        # 0 = infinite loop
