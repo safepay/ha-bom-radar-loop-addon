@@ -7,16 +7,16 @@ This Docker container creates those images, plus a useful animated GIF for showi
 
 Note that I run this on a Synology NAS so it is set up for that in terms of directories.
 
-Just change `/volume1/docker/weather_gif` to the path that suits your file system.
+Just change `/volume1/docker/bom_radar_downloader` to the path that suits your file system.
 
 ## Installation
 Create the following directory structure somewhere on the machine where you run Docker:
 ```
-/volume1/docker/weather_gif/
+/volume1/docker/bom_radar_downloader/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
-├── radar_downloader.py
+├── bom_radar_downloader.py
 ├── config.yaml
 ├── IDR.legend.0.png
 └── images/  (created automatically)
