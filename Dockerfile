@@ -7,7 +7,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application file
-COPY radar_downloader.py ./
+COPY bom_radar_downloader.py ./
 
 # Ensure Python output is unbuffered
 ENV PYTHONUNBUFFERED=1
