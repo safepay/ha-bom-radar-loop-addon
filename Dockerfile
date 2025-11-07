@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY bom_radar_downloader.py ./
 COPY radar_metadata.py ./
-COPY home-circle-dark.svg ./
+COPY home-circle-dark.png ./
 
 # Ensure Python output is unbuffered
 ENV PYTHONUNBUFFERED=1

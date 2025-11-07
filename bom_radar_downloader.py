@@ -12,7 +12,6 @@ from pathlib import Path
 import pytz
 import yaml
 import math
-import cairosvg
 from radar_metadata import RADAR_METADATA
 
 VERSION = '1.0.0'
@@ -120,46 +119,34 @@ class RadarProcessor:
             logging.warning(f"Legend image not found at {legend_path}")
             return None
 
-    def load_house_icon(self, icon_path='/app/home-circle-dark.svg', size=32):
-        """Load house icon from SVG file and convert to PIL Image
-
-        Args:
-            icon_path: Path to the SVG icon file
-            size: Target size for the icon (will scale proportionally)
+    def load_house_icon(self):
+        """Load house icon from PNG file
 
         Returns:
-            PIL Image object with RGBA mode
+            PIL Image object with RGBA mode, or None if not found
         """
         try:
             # Check multiple possible locations for the icon
             possible_paths = [
-                icon_path,
-                '/app/home-circle-dark.svg',
-                'home-circle-dark.svg',
-                os.path.join(os.path.dirname(__file__), 'home-circle-dark.svg')
+                '/app/home-circle-dark.png',
+                'home-circle-dark.png',
+                os.path.join(os.path.dirname(__file__), 'home-circle-dark.png')
             ]
 
-            svg_path = None
+            icon_path = None
             for path in possible_paths:
                 if os.path.exists(path):
-                    svg_path = path
+                    icon_path = path
                     break
 
-            if svg_path is None:
-                logging.error(f"House icon SVG file not found. Tried: {possible_paths}")
+            if icon_path is None:
+                logging.error(f"House icon PNG file not found. Tried: {possible_paths}")
                 return None
 
-            # Convert SVG to PNG bytes
-            png_data = cairosvg.svg2png(
-                url=svg_path,
-                output_width=size,
-                output_height=size
-            )
+            # Load PNG directly with PIL
+            icon = Image.open(icon_path).convert('RGBA')
 
-            # Load PNG bytes into PIL Image
-            icon = Image.open(io.BytesIO(png_data))
-
-            logging.debug(f"Loaded house icon from {svg_path}: {icon.size}")
+            logging.debug(f"Loaded house icon from {icon_path}: {icon.size}")
             return icon
 
         except Exception as e:
@@ -318,7 +305,7 @@ class RadarProcessor:
             # Load house icon if residential location is enabled
             house_icon = None
             if self.config['residential_enabled']:
-                house_icon = self.load_house_icon(size=32)
+                house_icon = self.load_house_icon()
                 if house_icon:
                     logging.info(f"Residential location marker enabled at "
                                f"({self.config['residential_lat']}, {self.config['residential_lon']})")
