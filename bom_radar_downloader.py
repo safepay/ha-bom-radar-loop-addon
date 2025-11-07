@@ -12,6 +12,7 @@ from pathlib import Path
 import pytz
 import yaml
 import math
+from radar_metadata import RADAR_METADATA
 
 VERSION = '1.0.0'
 
@@ -168,37 +169,17 @@ class RadarProcessor:
     def get_radar_metadata(self, product_id):
         """Get radar center coordinates and scale from product ID
 
-        This is a simplified mapping. BOM radar images use different projections
-        and scales depending on the radar location. For accurate positioning,
-        you may need to adjust these values based on your specific radar.
-        """
-        # BOM radar metadata - approximate center coordinates for common radars
-        # Format: 'PRODUCT_ID': (latitude, longitude, km_per_pixel)
-        radar_metadata = {
-            'IDR022': (-33.7, 151.2, 0.5),  # Sydney (Terrey Hills)
-            'IDR023': (-33.7, 151.2, 1.0),  # Sydney 128km
-            'IDR024': (-33.7, 151.2, 2.0),  # Sydney 256km
-            'IDR032': (-27.7, 153.2, 0.5),  # Brisbane (Mt Stapylton)
-            'IDR033': (-27.7, 153.2, 1.0),  # Brisbane 128km
-            'IDR034': (-27.7, 153.2, 2.0),  # Brisbane 256km
-            'IDR662': (-37.9, 145.0, 0.5),  # Melbourne (Broadmeadows)
-            'IDR663': (-37.9, 145.0, 1.0),  # Melbourne 128km
-            'IDR664': (-37.9, 145.0, 2.0),  # Melbourne 256km
-            'IDR702': (-34.9, 138.5, 0.5),  # Adelaide (Buckland Park)
-            'IDR703': (-34.9, 138.5, 1.0),  # Adelaide 128km
-            'IDR704': (-34.9, 138.5, 2.0),  # Adelaide 256km
-            'IDR712': (-31.9, 116.0, 0.5),  # Perth (Serpentine)
-            'IDR713': (-31.9, 116.0, 1.0),  # Perth 128km
-            'IDR714': (-31.9, 116.0, 2.0),  # Perth 256km
-            'IDR952': (-37.855, 144.755, 0.5),  # Melbourne (Mt Macedon) - 64km
-            'IDR953': (-37.855, 144.755, 1.0),  # Melbourne (Mt Macedon) - 128km
-        }
+        Retrieves metadata from the radar_metadata module which contains
+        information for all Australian BOM radars.
 
+        Returns:
+            tuple: (latitude, longitude, km_per_pixel)
+        """
         # Default values if product ID not found
         default_metadata = (0, 0, 1.0)
 
-        metadata = radar_metadata.get(product_id, default_metadata)
-        if product_id not in radar_metadata:
+        metadata = RADAR_METADATA.get(product_id, default_metadata)
+        if product_id not in RADAR_METADATA:
             logging.warning(f"Radar metadata not found for {product_id}. Using defaults. "
                           f"House marker may not be accurately positioned.")
 
