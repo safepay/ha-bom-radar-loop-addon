@@ -10,6 +10,8 @@ Note that I run this on a Synology NAS so it is set up for that in terms of dire
 Just change `/volume1/docker/bom_radar_downloader` to the path that suits your file system.
 
 ## Installation
+
+### On Docker
 Create the following directory structure somewhere on the machine where you run Docker:
 ```
 /volume1/docker/bom_radar_downloader/
@@ -23,7 +25,7 @@ Create the following directory structure somewhere on the machine where you run 
 ├── home-circle-dark.png
 └── images/  (created automatically)
 ```
-
+### On Home Assistant
 Edit the `config.yaml` file to suit your requirements. The intructions are in the file on what to change.
 
 On your Home Assistant create a `images` folder under `/config/www` as per your config file in the `Output Configuration` section.
