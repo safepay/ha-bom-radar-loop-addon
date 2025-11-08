@@ -177,6 +177,10 @@ class RadarProcessor:
 
         This uses a simple approximation assuming the radar image is centered
         on the radar location and uses a linear projection.
+
+        Note: BOM radar images are always 512x512 pixels. The composite image
+        may be taller due to the legend at the bottom, but the radar center
+        is always at (256, 256) in the radar portion of the image.
         """
         # Earth's radius in km
         R = 6371.0
@@ -198,9 +202,11 @@ class RadarProcessor:
         dx = dlon * R * math.cos(lat1)
 
         # Convert km to pixels
-        # Image center is at image_size / 2
-        center_x = image_size[0] // 2
-        center_y = image_size[1] // 2
+        # BOM radar images are always 512x512, so center is at (256, 256)
+        # regardless of the total composite image size (which includes legend)
+        RADAR_SIZE = 512
+        center_x = RADAR_SIZE // 2  # 256
+        center_y = RADAR_SIZE // 2  # 256
 
         # Calculate pixel position
         # Note: y increases downward in images, so we subtract dy
@@ -209,6 +215,7 @@ class RadarProcessor:
 
         logging.debug(f"Converted ({lat}, {lon}) to pixel ({pixel_x}, {pixel_y})")
         logging.debug(f"Offset from radar: dx={dx:.2f}km, dy={dy:.2f}km")
+        logging.debug(f"Radar center: ({center_x}, {center_y}), Image size: {image_size}")
 
         return (pixel_x, pixel_y)
 
