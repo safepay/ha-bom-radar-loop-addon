@@ -447,6 +447,17 @@ class RadarProcessor:
 
             logging.info(f"Base image with all layers size: {base_image.size}")
 
+            # Save the legend area (bottom 45px) to re-apply after radar compositing
+            # This ensures the legend always appears on top, even if second radar overlaps it
+            legend_height = 45
+            base_width, base_height = base_image.size
+            if base_height > legend_height:
+                legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
+                logging.debug(f"Saved legend area: {legend_area.size}")
+            else:
+                legend_area = None
+                logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
+
             # Get radar images
             ftp.cwd('/anon/gen/radar/')
 
@@ -545,6 +556,13 @@ class RadarProcessor:
 
                     # Paste primary radar on top (always at 0, 0)
                     frame.paste(primary_image, (0, 0), primary_image)
+
+                    # Re-paste legend area on top to ensure it's always visible
+                    # This prevents second radar from obscuring the legend
+                    if legend_area is not None:
+                        legend_y = base_height - legend_height
+                        frame.paste(legend_area, (0, legend_y), legend_area)
+                        logging.debug(f"Re-pasted legend area at bottom")
 
                     self.frames.append(frame)
                     logging.debug(f"Successfully processed {file}")
