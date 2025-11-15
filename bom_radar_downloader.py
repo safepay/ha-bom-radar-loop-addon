@@ -284,12 +284,8 @@ class RadarProcessor:
     def make_timestamp_transparent(self, image):
         """Make timestamp text at bottom of image transparent while preserving radar pixels
 
-        This removes the timestamp text by making pixels that match the typical
-        timestamp background color transparent, while leaving radar data intact.
-
-        The timestamp is typically on a dark background at the bottom of the image.
-        We'll identify and remove text-colored pixels (usually white/light gray) in the
-        bottom portion of the image.
+        This removes the timestamp text by targeting the black (RGB 0,0,0) background
+        that BOM uses for timestamps, while leaving colored radar data intact.
 
         Args:
             image: PIL Image object in RGBA mode
@@ -302,29 +298,21 @@ class RadarProcessor:
         pixels = img.load()
 
         # The timestamp is typically in the bottom ~20 pixels
-        # We'll look for light-colored pixels (text) on dark background
         timestamp_region_height = 20
         start_y = max(0, height - timestamp_region_height)
 
-        # Make very dark pixels (background) and very light pixels (text) transparent
-        # while preserving colored radar pixels
+        # Target pure black (RGB 0,0,0) which is used for timestamp background
+        # BOM radar images use this color exclusively for the timestamp area
         for y in range(start_y, height):
             for x in range(width):
                 r, g, b, a = pixels[x, y]
 
-                # If pixel is very dark (black background) or very light (white text)
-                # and has low color saturation (not colored radar data)
-                luminance = (r + g + b) / 3
+                # Make pure black pixels transparent (RGB values all 0)
+                # Allow slight tolerance for compression artifacts
+                if r <= 2 and g <= 2 and b <= 2:
+                    pixels[x, y] = (0, 0, 0, 0)  # Make transparent
 
-                # Check if it's grayscale (text or background) vs colored (radar)
-                color_variance = max(abs(r - g), abs(g - b), abs(r - b))
-
-                # If it's nearly grayscale and either very dark or very light, make transparent
-                if color_variance < 30:  # Nearly grayscale
-                    if luminance < 50 or luminance > 200:  # Very dark or very light
-                        pixels[x, y] = (0, 0, 0, 0)  # Make transparent
-
-        logging.debug(f"Made timestamp transparent in bottom {timestamp_region_height}px of image {img.size}")
+        logging.debug(f"Made timestamp (RGB 0,0,0) transparent in bottom {timestamp_region_height}px of image {img.size}")
         return img
 
     def calculate_radar_offset(self, primary_product_id, secondary_product_id):
@@ -527,57 +515,35 @@ class RadarProcessor:
                     file_obj.seek(0)
                     primary_image = Image.open(file_obj).convert('RGBA')
 
-                    # If second radar is enabled, create a composite with both radars
+                    # Start with base image (maintains original size)
+                    frame = base_image.copy()
+
+                    # If second radar is enabled, check for overlap and composite if needed
                     if second_radar_enabled and second_radar_images and i < len(second_radar_images):
                         second_image = second_radar_images[i]
 
                         if second_image is not None:
-                            # Calculate canvas size to fit both radars
-                            # We need to ensure the canvas can fit both radars with their offset
+                            # Check if second radar overlaps with primary radar
+                            # Primary radar: (0, 0) to (512, 512)
+                            # Second radar: (offset_x, offset_y) to (offset_x + 512, offset_y + 512)
                             RADAR_SIZE = 512
 
-                            # Calculate the required canvas size
-                            # The canvas needs to be large enough to contain both radars
-                            canvas_width = max(RADAR_SIZE, RADAR_SIZE + abs(offset_x)) + abs(min(0, offset_x))
-                            canvas_height = max(RADAR_SIZE, RADAR_SIZE + abs(offset_y)) + abs(min(0, offset_y))
+                            # Rectangles overlap if they intersect
+                            overlaps = (
+                                offset_x < RADAR_SIZE and (offset_x + RADAR_SIZE) > 0 and
+                                offset_y < RADAR_SIZE and (offset_y + RADAR_SIZE) > 0
+                            )
 
-                            # Ensure canvas is at least as large as base_image
-                            canvas_width = max(canvas_width, base_image.size[0])
-                            canvas_height = max(canvas_height, base_image.size[1])
-
-                            # Create expanded base if needed
-                            if canvas_width > base_image.size[0] or canvas_height > base_image.size[1]:
-                                expanded_base = Image.new('RGBA', (canvas_width, canvas_height), (0, 0, 0, 0))
-                                expanded_base.paste(base_image, (0, 0))
-                                frame = expanded_base
+                            if overlaps:
+                                # Paste second radar first (it should be below)
+                                # PIL will automatically clip if it extends beyond canvas
+                                frame.paste(second_image, (offset_x, offset_y), second_image)
+                                logging.debug(f"Pasted second radar at ({offset_x}, {offset_y}) - overlaps with primary")
                             else:
-                                frame = base_image.copy()
+                                logging.warning(f"Second radar at offset ({offset_x}, {offset_y}) does not overlap with primary radar - skipping")
 
-                            # Position calculations:
-                            # Primary radar is always at (0, 0) - its center remains the center
-                            # Second radar is offset based on geographic position
-
-                            # Calculate where to paste the second radar
-                            # The radar images are 512x512, centered at (256, 256)
-                            # We want to offset the CENTER of the second radar by (offset_x, offset_y)
-                            second_paste_x = offset_x
-                            second_paste_y = offset_y
-
-                            # Paste second radar first (it should be below)
-                            frame.paste(second_image, (second_paste_x, second_paste_y), second_image)
-                            logging.debug(f"Pasted second radar at ({second_paste_x}, {second_paste_y})")
-
-                            # Paste primary radar on top (at 0, 0)
-                            frame.paste(primary_image, (0, 0), primary_image)
-                            logging.debug(f"Pasted primary radar at (0, 0)")
-                        else:
-                            # Second radar image failed, just use primary
-                            frame = base_image.copy()
-                            frame.paste(primary_image, (0, 0), primary_image)
-                    else:
-                        # No second radar, use standard composition
-                        frame = base_image.copy()
-                        frame.paste(primary_image, (0, 0), primary_image)
+                    # Paste primary radar on top (always at 0, 0)
+                    frame.paste(primary_image, (0, 0), primary_image)
 
                     self.frames.append(frame)
                     logging.debug(f"Successfully processed {file}")
