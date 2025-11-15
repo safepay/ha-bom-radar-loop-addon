@@ -12,6 +12,14 @@ residential_location:
   longitude: 144.9631  # Your home longitude
   # Note: The house icon will only appear on the animated radar loop, not on static images
 
+# Second Radar (Optional)
+# Overlays a second radar on the primary radar for extended coverage
+# The second radar will be positioned geographically and appear below the primary radar
+second_radar:
+  enabled: false  # Set to true to enable the second radar
+  product_id: IDR022  # BOM Product ID for the second radar (e.g., IDR022 for Melbourne 256km)
+  # Note: The second radar's copyright and timestamp will be automatically removed
+
 # Scheduler Configuration - can be left untouched
 scheduler:
   enabled: true
@@ -41,9 +49,10 @@ output:
   timestamp_file: radar_last_update.txt
   legend_file: /IDR.legend.0.png
 
-# GIF Settings - con be left untouched
+# GIF Settings - can be left untouched
 gif:
   duration: 500  # Milliseconds per frame
+  last_frame_duration: 1000  # Milliseconds for the last frame (pause before loop restarts)
   loop: 0        # 0 = infinite loop
 
 # Logging

@@ -54,6 +54,7 @@ class Config:
         gif = config.get('gif', {})
         log_config = config.get('logging', {})
         residential = config.get('residential_location', {})
+        second_radar = config.get('second_radar', {})
         
         return {
             # Radar settings
@@ -84,6 +85,7 @@ class Config:
             
             # GIF settings
             'gif_duration': int(os.getenv('GIF_DURATION', gif.get('duration', 500))),
+            'gif_last_frame_duration': int(os.getenv('GIF_LAST_FRAME_DURATION', gif.get('last_frame_duration', 1000))),
             'gif_loop': int(os.getenv('GIF_LOOP', gif.get('loop', 0))),
             
             # Logging
@@ -93,6 +95,10 @@ class Config:
             'residential_enabled': residential.get('enabled', False),
             'residential_lat': residential.get('latitude'),
             'residential_lon': residential.get('longitude'),
+
+            # Second radar
+            'second_radar_enabled': second_radar.get('enabled', False),
+            'second_radar_product_id': second_radar.get('product_id'),
         }
 
 
@@ -254,7 +260,107 @@ class RadarProcessor:
             logging.warning(f"Residential location ({lat}, {lon}) is outside radar image bounds")
 
         return frame
-    
+
+    def remove_copyright(self, image):
+        """Remove top 16px copyright notice from radar image by making it transparent
+
+        Args:
+            image: PIL Image object in RGBA mode
+
+        Returns:
+            PIL Image with top 16px replaced with transparent pixels
+        """
+        img = image.copy()
+        width, height = img.size
+
+        # Create a transparent strip for the top 16 pixels
+        pixels = img.load()
+        for y in range(min(16, height)):
+            for x in range(width):
+                pixels[x, y] = (0, 0, 0, 0)  # Fully transparent
+
+        logging.debug(f"Removed copyright (top 16px) from image {img.size}")
+        return img
+
+    def make_timestamp_transparent(self, image):
+        """Make timestamp text at bottom of image transparent while preserving radar pixels
+
+        BOM radar images have timestamp text in pure black (RGB 0,0,0) at the bottom.
+        The background is already transparent. This function removes only the black text
+        while preserving any colored radar data that may overlay the timestamp area.
+
+        Args:
+            image: PIL Image object in RGBA mode
+
+        Returns:
+            PIL Image with timestamp text made transparent
+        """
+        img = image.copy()
+        width, height = img.size
+        pixels = img.load()
+
+        # The timestamp text is in the bottom ~20 pixels
+        timestamp_region_height = 20
+        start_y = max(0, height - timestamp_region_height)
+
+        # Target pure black (RGB 0,0,0) timestamp text
+        # Radar data is never this color, so we can safely remove it
+        for y in range(start_y, height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+
+                # Make black pixels transparent (timestamp text)
+                # Allow slight tolerance (≤2) for compression artifacts
+                if r <= 2 and g <= 2 and b <= 2:
+                    pixels[x, y] = (0, 0, 0, 0)  # Make transparent
+
+        logging.debug(f"Made timestamp text (RGB 0,0,0) transparent in bottom {timestamp_region_height}px of image {img.size}")
+        return img
+
+    def calculate_radar_offset(self, primary_product_id, secondary_product_id):
+        """Calculate pixel offset between two radars based on their geographic positions
+
+        Args:
+            primary_product_id: Product ID of primary radar
+            secondary_product_id: Product ID of secondary radar
+
+        Returns:
+            tuple: (offset_x, offset_y) in pixels for positioning secondary radar relative to primary
+        """
+        # Get metadata for both radars
+        primary_lat, primary_lon, primary_km_per_pixel = self.get_radar_metadata(primary_product_id)
+        secondary_lat, secondary_lon, secondary_km_per_pixel = self.get_radar_metadata(secondary_product_id)
+
+        logging.info(f"Primary radar ({primary_product_id}): lat={primary_lat}, lon={primary_lon}, scale={primary_km_per_pixel}")
+        logging.info(f"Secondary radar ({secondary_product_id}): lat={secondary_lat}, lon={secondary_lon}, scale={secondary_km_per_pixel}")
+
+        # Calculate the geographic distance between the two radar centers
+        # Use the primary radar's scale for pixel conversion
+        R = 6371.0  # Earth's radius in km
+
+        # Convert to radians
+        lat1 = math.radians(primary_lat)
+        lon1 = math.radians(primary_lon)
+        lat2 = math.radians(secondary_lat)
+        lon2 = math.radians(secondary_lon)
+
+        # Calculate distance in km
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        # Distance in km (north is positive)
+        dy = dlat * R
+        # Distance in km (east is positive)
+        dx = dlon * R * math.cos(lat1)
+
+        # Convert km to pixels using primary radar's scale
+        offset_x = int(dx / primary_km_per_pixel)
+        offset_y = -int(dy / primary_km_per_pixel)  # Negative because y increases downward
+
+        logging.info(f"Radar offset: dx={dx:.2f}km, dy={dy:.2f}km -> pixels=({offset_x}, {offset_y})")
+
+        return (offset_x, offset_y)
+
     def get_timestamp(self, filename):
         """Extract timestamp from filename for sorting"""
         try:
@@ -300,6 +406,8 @@ class RadarProcessor:
         self.saved_filenames = []
 
         product_id = self.config['product_id']
+        second_radar_enabled = self.config.get('second_radar_enabled', False)
+        second_radar_product_id = self.config.get('second_radar_product_id')
 
         try:
             # Load the legend image as the base
@@ -318,60 +426,150 @@ class RadarProcessor:
                                f"({self.config['residential_lat']}, {self.config['residential_lon']})")
                 else:
                     logging.warning("Could not load house icon, marker will be disabled")
-            
+
             # Connect to FTP server
             logging.info("Connecting to BOM FTP server...")
             ftp = ftplib.FTP('ftp.bom.gov.au')
             ftp.login()
-            
+
             # Build composite layers on top of the legend base
             ftp.cwd('anon/gen/radar_transparencies/')
-            
+
             for layer in self.config['layers']:
                 filename = f"{product_id}.{layer}.png"
                 logging.debug(f"Downloading layer: {layer}")
                 file_obj = io.BytesIO()
                 ftp.retrbinary('RETR ' + filename, file_obj.write)
                 file_obj.seek(0)
-                
+
                 image = Image.open(file_obj).convert('RGBA')
                 base_image.paste(image, (0, 0), image)
                 logging.debug(f"Added layer: {layer}")
-            
+
             logging.info(f"Base image with all layers size: {base_image.size}")
-            
+
+            # Save the legend area (bottom 45px) to re-apply after radar compositing
+            # This ensures the legend always appears on top, even if second radar overlaps it
+            legend_height = 45
+            base_width, base_height = base_image.size
+            if base_height > legend_height:
+                legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
+                logging.debug(f"Saved legend area: {legend_area.size}")
+            else:
+                legend_area = None
+                logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
+
             # Get radar images
             ftp.cwd('/anon/gen/radar/')
-            
-            # Get all matching radar files
+
+            # Get all matching radar files for primary radar
             all_files = [file for file in ftp.nlst()
                          if file.startswith(product_id)
                          and file.endswith('.png')]
-            
+
             # Sort by timestamp
             sorted_files = sorted(all_files, key=self.get_timestamp)
-            
+
             # Get the last 5 (most recent) radar images
             files = sorted_files[-5:]
-            
-            logging.info(f"Found {len(all_files)} total radar files")
+
+            logging.info(f"Found {len(all_files)} total radar files for primary radar")
             logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in files]}")
-            
-            # Download and composite the radar images
-            for file in files:
-                logging.debug(f"Processing {file}")
+
+            # Download second radar images if enabled
+            second_radar_images = []
+            if second_radar_enabled and second_radar_product_id:
+                logging.info(f"Second radar enabled: {second_radar_product_id}")
+
+                # Get all matching files for second radar
+                all_second_files = [file for file in ftp.nlst()
+                                   if file.startswith(second_radar_product_id)
+                                   and file.endswith('.png')]
+
+                # Sort by timestamp
+                sorted_second_files = sorted(all_second_files, key=self.get_timestamp)
+
+                # Get the last 5 (most recent) radar images
+                second_files = sorted_second_files[-5:]
+
+                logging.info(f"Found {len(all_second_files)} total files for second radar")
+                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in second_files]}")
+
+                # Download second radar images
+                for file in second_files:
+                    logging.debug(f"Processing second radar {file}")
+                    file_obj = io.BytesIO()
+                    try:
+                        ftp.retrbinary('RETR ' + file, file_obj.write)
+                        file_obj.seek(0)
+                        image = Image.open(file_obj).convert('RGBA')
+
+                        # Process second radar image: remove copyright and timestamp
+                        image = self.remove_copyright(image)
+                        image = self.make_timestamp_transparent(image)
+
+                        second_radar_images.append(image)
+                        logging.debug(f"Successfully processed second radar {file}")
+                    except ftplib.all_errors as e:
+                        logging.error(f"Error downloading second radar {file}: {e}")
+                        second_radar_images.append(None)  # Placeholder for failed download
+
+                # Calculate offset for second radar positioning
+                if second_radar_images:
+                    offset_x, offset_y = self.calculate_radar_offset(product_id, second_radar_product_id)
+                    logging.info(f"Second radar will be offset by ({offset_x}, {offset_y}) pixels")
+
+            # Download and composite the primary radar images
+            for i, file in enumerate(files):
+                logging.debug(f"Processing primary radar {file}")
                 file_obj = io.BytesIO()
                 try:
                     ftp.retrbinary('RETR ' + file, file_obj.write)
                     file_obj.seek(0)
-                    image = Image.open(file_obj).convert('RGBA')
+                    primary_image = Image.open(file_obj).convert('RGBA')
+
+                    # Start with base image (maintains original size)
                     frame = base_image.copy()
-                    frame.paste(image, (0, 0), image)
+
+                    # If second radar is enabled, check for overlap and composite if needed
+                    if second_radar_enabled and second_radar_images and i < len(second_radar_images):
+                        second_image = second_radar_images[i]
+
+                        if second_image is not None:
+                            # Check if second radar overlaps with primary radar
+                            # Primary radar: (0, 0) to (512, 512)
+                            # Second radar: (offset_x, offset_y) to (offset_x + 512, offset_y + 512)
+                            RADAR_SIZE = 512
+
+                            # Rectangles overlap if they intersect
+                            overlaps = (
+                                offset_x < RADAR_SIZE and (offset_x + RADAR_SIZE) > 0 and
+                                offset_y < RADAR_SIZE and (offset_y + RADAR_SIZE) > 0
+                            )
+
+                            if overlaps:
+                                # Paste second radar first (it should be below)
+                                # PIL will automatically clip if it extends beyond canvas
+                                frame.paste(second_image, (offset_x, offset_y), second_image)
+                                logging.debug(f"Pasted second radar at ({offset_x}, {offset_y}) - overlaps with primary")
+                            else:
+                                logging.warning(f"Second radar at offset ({offset_x}, {offset_y}) does not overlap with primary radar - skipping")
+
+                    # Paste primary radar on top (always at 0, 0)
+                    frame.paste(primary_image, (0, 0), primary_image)
+
+                    # Re-paste legend area on top to ensure it's always visible
+                    # This prevents second radar from obscuring the legend
+                    if legend_area is not None:
+                        legend_y = base_height - legend_height
+                        frame.paste(legend_area, (0, legend_y), legend_area)
+                        logging.debug(f"Re-pasted legend area at bottom")
+
                     self.frames.append(frame)
                     logging.debug(f"Successfully processed {file}")
                 except ftplib.all_errors as e:
                     logging.error(f"Error downloading {file}: {e}")
-            
+
             ftp.quit()
             logging.info("Disconnected from FTP server")
             
@@ -405,16 +603,24 @@ class RadarProcessor:
                 self.config['output_directory'],
                 self.config['animated_gif_filename']
             )
+
+            # Create duration list with longer pause on last frame
+            num_frames = len(gif_frames)
+            frame_durations = [self.config['gif_duration']] * num_frames
+            if num_frames > 0:
+                frame_durations[-1] = self.config['gif_last_frame_duration']
+                logging.debug(f"GIF frame durations: {frame_durations}")
+
             gif_frames[0].save(
                 gif_filepath,
                 save_all=True,
                 append_images=gif_frames[1:],
-                duration=self.config['gif_duration'],
+                duration=frame_durations,
                 loop=self.config['gif_loop'],
                 optimize=False
             )
             self.saved_filenames.append(self.config['animated_gif_filename'])
-            logging.info(f"Saved animated GIF: {gif_filepath}")
+            logging.info(f"Saved animated GIF: {gif_filepath} ({num_frames} frames, last frame pauses for {self.config['gif_last_frame_duration']}ms)")
             
             # Extract timestamp from last radar file
             timestamp_content = self.parse_timestamp(files[-1]) if files else None
