@@ -50,6 +50,19 @@ To enable:
    - Appear below the primary radar in the composite (primary radar on top)
    - Maintain the primary radar's center as the image center
 
+### Third Radar Support (Optional)
+You can also overlay a third radar for even more extended coverage. The third radar works just like the second radar and uses the same processing logic.
+
+To enable:
+1. Edit `config.yaml` and set `third_radar.enabled: true`
+2. Set `third_radar.product_id` to your desired third radar
+3. The third radar will automatically:
+   - Have its copyright notice removed (top 16px)
+   - Have its timestamp text made transparent
+   - Be positioned geographically relative to the primary radar
+   - Appear below both the second and primary radars in the composite
+   - Layering order (bottom to top): Third radar → Second radar → Primary radar
+
 ### Residential Location Marker (Optional)
 Add a house icon to show your location on the radar loop. Configure in `config.yaml` under `residential_location`.
 
