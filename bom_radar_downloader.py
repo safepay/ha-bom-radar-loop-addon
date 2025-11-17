@@ -55,6 +55,7 @@ class Config:
         log_config = config.get('logging', {})
         residential = config.get('residential_location', {})
         second_radar = config.get('second_radar', {})
+        third_radar = config.get('third_radar', {})
         
         return {
             # Radar settings
@@ -99,6 +100,10 @@ class Config:
             # Second radar
             'second_radar_enabled': second_radar.get('enabled', False),
             'second_radar_product_id': second_radar.get('product_id'),
+
+            # Third radar
+            'third_radar_enabled': third_radar.get('enabled', False),
+            'third_radar_product_id': third_radar.get('product_id'),
         }
 
 
@@ -408,6 +413,8 @@ class RadarProcessor:
         product_id = self.config['product_id']
         second_radar_enabled = self.config.get('second_radar_enabled', False)
         second_radar_product_id = self.config.get('second_radar_product_id')
+        third_radar_enabled = self.config.get('third_radar_enabled', False)
+        third_radar_product_id = self.config.get('third_radar_product_id')
 
         try:
             # Load the legend image as the base
@@ -519,6 +526,49 @@ class RadarProcessor:
                     offset_x, offset_y = self.calculate_radar_offset(product_id, second_radar_product_id)
                     logging.info(f"Second radar will be offset by ({offset_x}, {offset_y}) pixels")
 
+            # Download third radar images if enabled
+            third_radar_images = []
+            if third_radar_enabled and third_radar_product_id:
+                logging.info(f"Third radar enabled: {third_radar_product_id}")
+
+                # Get all matching files for third radar
+                all_third_files = [file for file in ftp.nlst()
+                                   if file.startswith(third_radar_product_id)
+                                   and file.endswith('.png')]
+
+                # Sort by timestamp
+                sorted_third_files = sorted(all_third_files, key=self.get_timestamp)
+
+                # Get the last 5 (most recent) radar images
+                third_files = sorted_third_files[-5:]
+
+                logging.info(f"Found {len(all_third_files)} total files for third radar")
+                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in third_files]}")
+
+                # Download third radar images
+                for file in third_files:
+                    logging.debug(f"Processing third radar {file}")
+                    file_obj = io.BytesIO()
+                    try:
+                        ftp.retrbinary('RETR ' + file, file_obj.write)
+                        file_obj.seek(0)
+                        image = Image.open(file_obj).convert('RGBA')
+
+                        # Process third radar image: remove copyright and timestamp
+                        image = self.remove_copyright(image)
+                        image = self.make_timestamp_transparent(image)
+
+                        third_radar_images.append(image)
+                        logging.debug(f"Successfully processed third radar {file}")
+                    except ftplib.all_errors as e:
+                        logging.error(f"Error downloading third radar {file}: {e}")
+                        third_radar_images.append(None)  # Placeholder for failed download
+
+                # Calculate offset for third radar positioning
+                if third_radar_images:
+                    third_offset_x, third_offset_y = self.calculate_radar_offset(product_id, third_radar_product_id)
+                    logging.info(f"Third radar will be offset by ({third_offset_x}, {third_offset_y}) pixels")
+
             # Download and composite the primary radar images
             for i, file in enumerate(files):
                 logging.debug(f"Processing primary radar {file}")
@@ -531,7 +581,33 @@ class RadarProcessor:
                     # Start with base image (maintains original size)
                     frame = base_image.copy()
 
+                    # If third radar is enabled, check for overlap and composite if needed
+                    # Third radar goes first (bottom layer)
+                    if third_radar_enabled and third_radar_images and i < len(third_radar_images):
+                        third_image = third_radar_images[i]
+
+                        if third_image is not None:
+                            # Check if third radar overlaps with primary radar
+                            # Primary radar: (0, 0) to (512, 512)
+                            # Third radar: (third_offset_x, third_offset_y) to (third_offset_x + 512, third_offset_y + 512)
+                            RADAR_SIZE = 512
+
+                            # Rectangles overlap if they intersect
+                            overlaps = (
+                                third_offset_x < RADAR_SIZE and (third_offset_x + RADAR_SIZE) > 0 and
+                                third_offset_y < RADAR_SIZE and (third_offset_y + RADAR_SIZE) > 0
+                            )
+
+                            if overlaps:
+                                # Paste third radar first (it should be at the bottom)
+                                # PIL will automatically clip if it extends beyond canvas
+                                frame.paste(third_image, (third_offset_x, third_offset_y), third_image)
+                                logging.debug(f"Pasted third radar at ({third_offset_x}, {third_offset_y}) - overlaps with primary")
+                            else:
+                                logging.warning(f"Third radar at offset ({third_offset_x}, {third_offset_y}) does not overlap with primary radar - skipping")
+
                     # If second radar is enabled, check for overlap and composite if needed
+                    # Second radar goes on top of third radar (middle layer)
                     if second_radar_enabled and second_radar_images and i < len(second_radar_images):
                         second_image = second_radar_images[i]
 
@@ -548,7 +624,7 @@ class RadarProcessor:
                             )
 
                             if overlaps:
-                                # Paste second radar first (it should be below)
+                                # Paste second radar (it should be below primary but above third)
                                 # PIL will automatically clip if it extends beyond canvas
                                 frame.paste(second_image, (offset_x, offset_y), second_image)
                                 logging.debug(f"Pasted second radar at ({offset_x}, {offset_y}) - overlaps with primary")

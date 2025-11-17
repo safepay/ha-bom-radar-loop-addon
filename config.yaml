@@ -20,6 +20,15 @@ second_radar:
   product_id: IDR022  # BOM Product ID for the second radar (e.g., IDR022 for Melbourne 256km)
   # Note: The second radar's copyright and timestamp will be automatically removed
 
+# Third Radar (Optional)
+# Overlays a third radar on the primary radar for extended coverage
+# The third radar will be positioned geographically and appear below the second radar
+third_radar:
+  enabled: false  # Set to true to enable the third radar
+  product_id: IDR023  # BOM Product ID for the third radar
+  # Note: The third radar's copyright and timestamp will be automatically removed
+  # Layering order (bottom to top): Third radar -> Second radar -> Primary radar
+
 # Scheduler Configuration - can be left untouched
 scheduler:
   enabled: true
