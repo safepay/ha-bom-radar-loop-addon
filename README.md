@@ -1,4 +1,11 @@
 # Home Assistant Australian BoM Radar Loop Creator in Docker
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![GitHub stars](https://img.shields.io/github/stars/safepay/ha-bom-radar-loop-docker?style=social)](https://github.com/safepay/ha-bom-radar-loop-docker/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/safepay/ha-bom-radar-loop-docker?style=social)](https://github.com/safepay/ha-bom-radar-loop-docker/network/members)
+
 Docker container for Home Assistant BoM Radar Loop plus individual radar images to enable use in LLM Vision
 
 The Home Assitant LLM Vision analyser requires separate radar images to process when looking for storm events.
