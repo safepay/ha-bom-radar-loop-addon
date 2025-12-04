@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import io
 import ftplib
-import smbclient
+import json
 import os
 import sys
 import asyncio
@@ -10,101 +10,153 @@ from PIL import Image
 from datetime import datetime
 from pathlib import Path
 import pytz
-import yaml
 import math
 from radar_metadata import RADAR_METADATA
 
 VERSION = '1.0.0'
 
-# Check multiple possible config file locations
-CONFIG_PATHS = [
-    Path('/app/config.yaml'),
-    Path('config.yaml'),
-    Path('/config/config.yaml'),
-]
-
-CONFIG_FILE = None
-for path in CONFIG_PATHS:
-    if path.exists():
-        CONFIG_FILE = path
-        break
+# Check for Home Assistant addon options file or fallback to config.yaml
+OPTIONS_FILE = Path('/data/options.json')
+CONFIG_FILE = Path('/config/config.yaml')
 
 
 class Config:
-    """Configuration management"""
-    
+    """Configuration management for Home Assistant addon"""
+
     @staticmethod
     def load():
-        """Load configuration from file with environment variable overrides"""
-        if not CONFIG_FILE or not CONFIG_FILE.exists():
+        """Load configuration from Home Assistant addon options or config file"""
+
+        # Try Home Assistant addon options first
+        if OPTIONS_FILE.exists():
+            logging.info(f'Loading configuration from Home Assistant addon: {OPTIONS_FILE}')
+
+            with open(OPTIONS_FILE, 'r') as file:
+                options = json.load(file)
+
+            # Build output path - Home Assistant addons have access to /config
+            output_path = options.get('output_path', 'www/bom_radar')
+            output_directory = f'/config/{output_path}'
+
+            return {
+                # Radar settings
+                'product_id': options.get('radar_product_id', 'IDR022'),
+                'timezone': options.get('timezone', 'Australia/Melbourne'),
+
+                # Scheduler settings (always enabled in addon mode)
+                'scheduler_enabled': True,
+                'update_interval': int(options.get('update_interval', 600)),
+                'retry_on_error': True,
+                'retry_interval': 60,
+
+                # Layers
+                'layers': options.get('layers', ['background', 'locations']),
+
+                # Output settings
+                'output_directory': output_directory,
+                'animated_gif_filename': 'radar_animated.gif',
+                'timestamp_filename': 'radar_last_update.txt',
+                'legend_file': '/app/IDR.legend.0.png',
+
+                # GIF settings
+                'gif_duration': int(options.get('gif_duration', 500)),
+                'gif_last_frame_duration': int(options.get('gif_last_frame_duration', 1000)),
+                'gif_loop': 0,
+
+                # Logging
+                'log_level': 'INFO',
+
+                # Residential location marker
+                'residential_enabled': options.get('residential_location_enabled', False),
+                'residential_lat': float(options.get('residential_latitude', -37.8136)),
+                'residential_lon': float(options.get('residential_longitude', 144.9631)),
+
+                # Second radar
+                'second_radar_enabled': options.get('second_radar_enabled', False),
+                'second_radar_product_id': options.get('second_radar_product_id'),
+
+                # Third radar
+                'third_radar_enabled': options.get('third_radar_enabled', False),
+                'third_radar_product_id': options.get('third_radar_product_id'),
+
+                # Home Assistant addon mode (no SMB needed)
+                'addon_mode': True,
+            }
+
+        # Fallback to config.yaml for backward compatibility
+        elif CONFIG_FILE.exists():
+            logging.info(f'Loading configuration from config file: {CONFIG_FILE}')
+            import yaml
+
+            with open(CONFIG_FILE, 'r') as file:
+                config = yaml.safe_load(file)
+
+            radar = config.get('radar', {})
+            scheduler = config.get('scheduler', {})
+            smb = config.get('smb', {})
+            output = config.get('output', {})
+            gif = config.get('gif', {})
+            log_config = config.get('logging', {})
+            residential = config.get('residential_location', {})
+            second_radar = config.get('second_radar', {})
+            third_radar = config.get('third_radar', {})
+
+            return {
+                # Radar settings
+                'product_id': os.getenv('PRODUCT_ID', radar.get('product_id', 'IDR022')),
+                'timezone': os.getenv('TIMEZONE', radar.get('timezone', 'Australia/Melbourne')),
+
+                # Scheduler settings
+                'scheduler_enabled': os.getenv('SCHEDULER_ENABLED', str(scheduler.get('enabled', True))).lower() == 'true',
+                'update_interval': int(os.getenv('UPDATE_INTERVAL', scheduler.get('update_interval', 600))),
+                'retry_on_error': scheduler.get('retry_on_error', True),
+                'retry_interval': int(os.getenv('RETRY_INTERVAL', scheduler.get('retry_interval', 60))),
+
+                # SMB settings (for backward compatibility)
+                'smb_server': os.getenv('SMB_SERVER', smb.get('server')),
+                'smb_share': os.getenv('SMB_SHARE', smb.get('share')),
+                'smb_username': os.getenv('SMB_USERNAME', smb.get('username')),
+                'smb_password': os.getenv('SMB_PASSWORD', smb.get('password')),
+                'smb_remote_path': os.getenv('SMB_REMOTE_PATH', smb.get('remote_path')),
+
+                # Layers
+                'layers': config.get('layers', ['background', 'catchments', 'topography', 'locations']),
+
+                # Output settings
+                'output_directory': os.getenv('OUTPUT_DIR', output.get('directory', '/images')),
+                'animated_gif_filename': os.getenv('ANIMATED_GIF', output.get('animated_gif', 'radar_animated.gif')),
+                'timestamp_filename': os.getenv('TIMESTAMP_FILE', output.get('timestamp_file', 'radar_last_update.txt')),
+                'legend_file': os.getenv('LEGEND_FILE', output.get('legend_file', '/app/IDR.legend.0.png')),
+
+                # GIF settings
+                'gif_duration': int(os.getenv('GIF_DURATION', gif.get('duration', 500))),
+                'gif_last_frame_duration': int(os.getenv('GIF_LAST_FRAME_DURATION', gif.get('last_frame_duration', 1000))),
+                'gif_loop': int(os.getenv('GIF_LOOP', gif.get('loop', 0))),
+
+                # Logging
+                'log_level': os.getenv('LOG_LEVEL', log_config.get('level', 'INFO')).upper(),
+
+                # Residential location marker
+                'residential_enabled': residential.get('enabled', False),
+                'residential_lat': residential.get('latitude'),
+                'residential_lon': residential.get('longitude'),
+
+                # Second radar
+                'second_radar_enabled': second_radar.get('enabled', False),
+                'second_radar_product_id': second_radar.get('product_id'),
+
+                # Third radar
+                'third_radar_enabled': third_radar.get('enabled', False),
+                'third_radar_product_id': third_radar.get('product_id'),
+
+                # Not in addon mode
+                'addon_mode': False,
+            }
+
+        else:
             logging.error('No configuration file found!')
-            logging.error('Checked paths: ' + ', '.join(str(p) for p in CONFIG_PATHS))
+            logging.error(f'Checked: {OPTIONS_FILE}, {CONFIG_FILE}')
             sys.exit(1)
-        
-        logging.info(f'Loading configuration from: {CONFIG_FILE}')
-        
-        with open(CONFIG_FILE, 'r') as file:
-            config = yaml.safe_load(file)
-        
-        # Allow environment variable overrides
-        radar = config.get('radar', {})
-        scheduler = config.get('scheduler', {})
-        smb = config.get('smb', {})
-        output = config.get('output', {})
-        gif = config.get('gif', {})
-        log_config = config.get('logging', {})
-        residential = config.get('residential_location', {})
-        second_radar = config.get('second_radar', {})
-        third_radar = config.get('third_radar', {})
-        
-        return {
-            # Radar settings
-            'product_id': os.getenv('PRODUCT_ID', radar.get('product_id', 'IDR022')),
-            'timezone': os.getenv('TIMEZONE', radar.get('timezone', 'Australia/Melbourne')),
-            
-            # Scheduler settings
-            'scheduler_enabled': os.getenv('SCHEDULER_ENABLED', str(scheduler.get('enabled', True))).lower() == 'true',
-            'update_interval': int(os.getenv('UPDATE_INTERVAL', scheduler.get('update_interval', 600))),
-            'retry_on_error': scheduler.get('retry_on_error', True),
-            'retry_interval': int(os.getenv('RETRY_INTERVAL', scheduler.get('retry_interval', 60))),
-            
-            # SMB settings
-            'smb_server': os.getenv('SMB_SERVER', smb.get('server')),
-            'smb_share': os.getenv('SMB_SHARE', smb.get('share')),
-            'smb_username': os.getenv('SMB_USERNAME', smb.get('username')),
-            'smb_password': os.getenv('SMB_PASSWORD', smb.get('password')),
-            'smb_remote_path': os.getenv('SMB_REMOTE_PATH', smb.get('remote_path')),
-            
-            # Layers
-            'layers': config.get('layers', ['background', 'catchments', 'topography', 'locations']),
-            
-            # Output settings
-            'output_directory': os.getenv('OUTPUT_DIR', output.get('directory', '/images')),
-            'animated_gif_filename': os.getenv('ANIMATED_GIF', output.get('animated_gif', 'radar_animated.gif')),
-            'timestamp_filename': os.getenv('TIMESTAMP_FILE', output.get('timestamp_file', 'radar_last_update.txt')),
-            'legend_file': os.getenv('LEGEND_FILE', output.get('legend_file', '/app/IDR.legend.0.png')),
-            
-            # GIF settings
-            'gif_duration': int(os.getenv('GIF_DURATION', gif.get('duration', 500))),
-            'gif_last_frame_duration': int(os.getenv('GIF_LAST_FRAME_DURATION', gif.get('last_frame_duration', 1000))),
-            'gif_loop': int(os.getenv('GIF_LOOP', gif.get('loop', 0))),
-            
-            # Logging
-            'log_level': os.getenv('LOG_LEVEL', log_config.get('level', 'INFO')).upper(),
-
-            # Residential location marker
-            'residential_enabled': residential.get('enabled', False),
-            'residential_lat': residential.get('latitude'),
-            'residential_lon': residential.get('longitude'),
-
-            # Second radar
-            'second_radar_enabled': second_radar.get('enabled', False),
-            'second_radar_product_id': second_radar.get('product_id'),
-
-            # Third radar
-            'third_radar_enabled': third_radar.get('enabled', False),
-            'third_radar_product_id': third_radar.get('product_id'),
-        }
 
 
 class RadarProcessor:
@@ -700,10 +752,26 @@ class RadarProcessor:
             
             # Extract timestamp from last radar file
             timestamp_content = self.parse_timestamp(files[-1]) if files else None
-            
-            # Transfer to SMB share
-            self.transfer_to_smb(timestamp_content)
-            
+
+            # Write timestamp file locally
+            if timestamp_content:
+                timestamp_filepath = os.path.join(
+                    self.config['output_directory'],
+                    self.config['timestamp_filename']
+                )
+                try:
+                    with open(timestamp_filepath, 'w') as f:
+                        f.write(timestamp_content)
+                    logging.info(f"Wrote timestamp file: {timestamp_filepath}")
+                except Exception as e:
+                    logging.error(f"Failed to write timestamp file: {e}")
+
+            # Transfer to SMB share (only in non-addon mode)
+            if not self.config.get('addon_mode', False):
+                self.transfer_to_smb(timestamp_content)
+            else:
+                logging.info(f"Files saved to {self.config['output_directory']}")
+
             return True
             
         except ftplib.all_errors as e:
@@ -716,35 +784,42 @@ class RadarProcessor:
             return False
     
     def transfer_to_smb(self, timestamp_content):
-        """Transfer files to SMB share"""
+        """Transfer files to SMB share (deprecated - only for backward compatibility)"""
         if not self.saved_filenames:
             logging.warning("No files to transfer")
             return
-        
+
         try:
+            # Import smbclient only when needed (for backward compatibility)
+            try:
+                import smbclient
+            except ImportError:
+                logging.error("SMB transfer requires 'smbprotocol' package. Install with: pip install smbprotocol")
+                return
+
             # Configure SMB client
             smbclient.ClientConfig(
                 username=self.config['smb_username'],
                 password=self.config['smb_password']
             )
-            
+
             # Build SMB destination path
             smb_destination_path = (
                 f"//{self.config['smb_server']}/{self.config['smb_share']}"
                 f"{self.config['smb_remote_path']}"
             )
-            
+
             # Create destination directory
             try:
                 smbclient.makedirs(smb_destination_path, exist_ok=True)
             except Exception as e:
                 logging.warning(f"Could not create directory: {e}")
-            
+
             # Transfer each saved file
             for file_name in self.saved_filenames:
                 local_file_path = os.path.join(self.config['output_directory'], file_name)
                 smb_file_path = f"{smb_destination_path}/{file_name}"
-                
+
                 logging.debug(f"Transferring {file_name}...")
                 try:
                     with open(local_file_path, 'rb') as local_file:
@@ -753,9 +828,9 @@ class RadarProcessor:
                     logging.debug(f"Successfully transferred {file_name}")
                 except Exception as e:
                     logging.error(f"Failed to transfer {file_name}: {e}")
-            
+
             logging.info(f"Transferred {len(self.saved_filenames)} files to SMB share")
-            
+
             # Write timestamp file
             if timestamp_content:
                 timestamp_file_path = f"{smb_destination_path}/{self.config['timestamp_filename']}"
@@ -765,13 +840,14 @@ class RadarProcessor:
                     logging.info(f"Successfully wrote timestamp file")
                 except Exception as e:
                     logging.error(f"Failed to write timestamp file: {e}")
-                    
-        except smbclient.exceptions.SMBException as e:
-            logging.error(f"SMB Error: {e}")
+
         except Exception as e:
             logging.error(f"Transfer error: {e}")
-        finally:
-            smbclient.reset_connection_cache()
+            try:
+                import smbclient
+                smbclient.reset_connection_cache()
+            except:
+                pass
 
 
 async def main():
@@ -797,9 +873,11 @@ async def main():
     sys.stdout.reconfigure(line_buffering=True)
     
     logging.info(f'=== Radar Downloader version {VERSION} started ===')
-    logging.info(f'Configuration loaded from: {CONFIG_FILE}')
+    if config.get('addon_mode', False):
+        logging.info('Running in Home Assistant addon mode')
     logging.info(f'Product ID: {config["product_id"]}')
     logging.info(f'Timezone: {config["timezone"]}')
+    logging.info(f'Output directory: {config["output_directory"]}')
     
     if config['scheduler_enabled']:
         logging.info(f'Scheduler enabled: Update interval = {config["update_interval"]} seconds')
