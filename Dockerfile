@@ -11,7 +11,7 @@ WORKDIR /app
 
 # Copy and install requirements first (better caching)
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application files
 COPY bom_radar_downloader.py ./
