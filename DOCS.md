@@ -131,15 +131,24 @@ This can be useful for AI prompts or automation.
 
 ## Finding Your Radar Product ID
 
-1. Visit http://www.bom.gov.au/australia/radar/
-2. Click on your nearest radar location
-3. Look at the URL in your browser - it will contain the radar ID
-4. Common radar IDs:
-   - **IDR013**: Adelaide (Buckland Park)
-   - **IDR022**: Melbourne (Laverton)
-   - **IDR023**: Geelong
-   - **IDR033**: Brisbane (Marburg)
-   - **IDR703**: Sydney (Terrey Hills)
+**See the complete [Radar Reference Guide (RADARS.md)](RADARS.md)** for a comprehensive list of all Australian radar locations organized by state.
+
+### Quick Reference - Major Cities
+
+| City | Recommended Product ID | Range |
+|------|----------------------|-------|
+| **Sydney** | IDR713 | 128km |
+| **Melbourne** | IDR023 | 128km |
+| **Brisbane** | IDR663 | 128km |
+| **Perth** | IDR703 | 128km |
+| **Adelaide** | IDR643 | 128km |
+| **Canberra** | IDR403 | 128km |
+| **Hobart** | IDR763 | 128km |
+| **Darwin** | IDR633 | 128km |
+
+Each radar location has multiple product IDs for different coverage ranges (64km, 128km, 256km, 512km). The 128km range is recommended for most users as it provides a good balance of coverage and detail.
+
+For a complete list of all radars organized by state/territory, see [RADARS.md](RADARS.md).
 
 ## Troubleshooting
 

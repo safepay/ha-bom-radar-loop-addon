@@ -156,21 +156,20 @@ The addon creates `radar_last_update.txt` with UTC and local timestamps. You can
 
 ## Finding Your Radar Product ID
 
-1. Visit http://www.bom.gov.au/australia/radar/
-2. Click on your nearest radar location on the map
-3. Look at the URL - it contains your radar ID (e.g., `IDR022`, `IDR703`)
+**📍 See the complete [Radar Reference Guide (RADARS.md)](RADARS.md)** - All Australian radars organized by state with product IDs and coordinates.
 
-### Common Radar IDs
+### Quick Reference - Major Cities
 
-- **IDR013**: Adelaide (Buckland Park)
-- **IDR022**: Melbourne (Laverton) - 128km
-- **IDR023**: Geelong - 128km
-- **IDR024**: Melbourne (Laverton) - 256km
-- **IDR033**: Brisbane (Marburg)
-- **IDR703**: Sydney (Terrey Hills)
-- **IDR713**: Canberra (Captains Flat)
+| City | Product ID | Range | Alternative |
+|------|-----------|-------|-------------|
+| **Sydney** | IDR713 | 128km | IDR712 (256km) |
+| **Melbourne** | IDR023 | 128km | IDR022 (256km) |
+| **Brisbane** | IDR663 | 128km | IDR662 (256km) |
+| **Perth** | IDR703 | 128km | IDR702 (256km) |
+| **Adelaide** | IDR643 | 128km | IDR642 (256km) |
+| **Canberra** | IDR403 | 128km | IDR402 (256km) |
 
-For a complete list, visit the BoM radar website.
+**Tip**: The 128km range provides the best balance of coverage and detail for most users.
 
 ## Troubleshooting
 
