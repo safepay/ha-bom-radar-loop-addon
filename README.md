@@ -1,4 +1,9 @@
 # Home Assistant Australian BoM Radar Loop Creator in Docker
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+
 Docker container for Home Assistant BoM Radar Loop plus individual radar images to enable use in LLM Vision
 
 The Home Assitant LLM Vision analyser requires separate radar images to process when looking for storm events.
@@ -34,7 +39,20 @@ Then build and run as required by Docker.
 
 ## Docker Commands
 
-### Option 1: Using the Dockerfile (Recommended)
+### Option 1: Using Synology Container Manager (Recommended for Synology NAS)
+This project was originally built for Synology NAS systems.
+
+1. Open **Container Manager** on your Synology NAS
+2. Go to **Project** and click **Create**
+3. Set the project folder to `/volume1/docker/bom_radar_downloader` (or your chosen location)
+4. Select **Set path** and choose the folder containing your Dockerfile
+5. Container Manager will automatically detect the Dockerfile
+6. Click **Build** to create the image
+7. Once built, click **Run** to start the container with the configured volume mounts
+
+The Container Manager will handle the volume mappings as defined in your project setup.
+
+### Option 2: Using the Dockerfile (Command Line)
 This repository includes a Dockerfile for building a custom image.
 
 1. Build the image from the directory containing the Dockerfile:
@@ -53,7 +71,7 @@ docker run -d \
   bom-radar-loop
 ```
 
-### Option 2: Using Python Base Image (Ubuntu/Linux)
+### Option 3: Using Python Base Image (Ubuntu/Linux)
 If you prefer not to use the Dockerfile, you can run directly from a Python base image.
 
 ```bash
