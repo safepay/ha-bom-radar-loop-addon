@@ -26,15 +26,17 @@ This addon creates animated radar loops and individual frame images from Austral
 
 1. **Add the Repository**:
    - Navigate to **Settings** → **Add-ons** → **Add-on Store** in Home Assistant
-   - Click the three dots (⋮) in the top right corner
+   - Click the three dots (⋮) menu in the top right corner
    - Select **Repositories**
-   - Add this repository URL: `https://github.com/safepay/ha-bom-radar-loop-addon`
-   - Click **Add** then **Close**
+   - Paste this repository URL: `https://github.com/safepay/ha-bom-radar-loop-addon`
+   - Click **Add**
+   - Wait for Home Assistant to validate and add the repository
 
 2. **Install the Addon**:
-   - Refresh the Add-on Store page
-   - Find "Australian BoM Radar Loop" in the list
+   - The addon should now appear in your Add-on Store
+   - Look for "Australian BoM Radar Loop"
    - Click on it and press **Install**
+   - Wait for installation to complete (may take a few minutes)
 
 3. **Configure the Addon**:
    - Go to the **Configuration** tab
