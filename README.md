@@ -32,6 +32,43 @@ On your Home Assistant create a `images` folder under `/config/www` as per your 
 
 Then build and run as required by Docker.
 
+## Docker Commands
+
+### Option 1: Using the Dockerfile (Recommended)
+This repository includes a Dockerfile for building a custom image.
+
+1. Build the image from the directory containing the Dockerfile:
+```bash
+docker build -t bom-radar-loop .
+```
+
+2. Run the container with volume mounts:
+```bash
+docker run -d \
+  --name bom-radar-loop \
+  -v /volume1/docker/bom_radar_downloader/config.yaml:/config/config.yaml \
+  -v /volume1/docker/bom_radar_downloader/IDR.legend.0.png:/IDR.legend.0.png \
+  -v /volume1/docker/bom_radar_downloader/images:/images \
+  --restart unless-stopped \
+  bom-radar-loop
+```
+
+### Option 2: Using Python Base Image (Ubuntu/Linux)
+If you prefer not to use the Dockerfile, you can run directly from a Python base image.
+
+```bash
+docker run -d \
+  --name bom-radar-loop \
+  -v /volume1/docker/bom_radar_downloader:/app \
+  -v /volume1/docker/bom_radar_downloader/images:/images \
+  -w /app \
+  --restart unless-stopped \
+  python:3.11-slim \
+  sh -c "pip install --no-cache-dir -r requirements.txt && python -u bom_radar_downloader.py"
+```
+
+**Note:** Replace `/volume1/docker/bom_radar_downloader` with your actual path on Ubuntu systems (e.g., `/home/user/bom-radar-loop`).
+
 ## Features
 
 ### Second Radar Support (Optional)
