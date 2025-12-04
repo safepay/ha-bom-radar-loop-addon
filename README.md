@@ -32,6 +32,93 @@ On your Home Assistant create a `images` folder under `/config/www` as per your 
 
 Then build and run as required by Docker.
 
+## Docker Commands
+
+### Build the Docker Image
+Build the image from the directory containing the Dockerfile:
+```bash
+docker build -t bom-radar-loop .
+```
+
+### Run the Container
+Basic run command with volume mounts:
+```bash
+docker run -d \
+  --name bom-radar-loop \
+  -v /volume1/docker/bom_radar_downloader/config.yaml:/config/config.yaml \
+  -v /volume1/docker/bom_radar_downloader/IDR.legend.0.png:/IDR.legend.0.png \
+  -v /volume1/docker/bom_radar_downloader/images:/images \
+  --restart unless-stopped \
+  bom-radar-loop
+```
+
+### Run with Environment Variables
+To avoid storing credentials in config.yaml, use environment variables:
+```bash
+docker run -d \
+  --name bom-radar-loop \
+  -v /volume1/docker/bom_radar_downloader/config.yaml:/config/config.yaml \
+  -v /volume1/docker/bom_radar_downloader/IDR.legend.0.png:/IDR.legend.0.png \
+  -v /volume1/docker/bom_radar_downloader/images:/images \
+  -e SMB_USERNAME=your_username \
+  -e SMB_PASSWORD=your_password \
+  --restart unless-stopped \
+  bom-radar-loop
+```
+
+### View Container Logs
+Check the logs to monitor radar downloads and processing:
+```bash
+docker logs bom-radar-loop
+```
+
+Follow logs in real-time:
+```bash
+docker logs -f bom-radar-loop
+```
+
+### Stop the Container
+```bash
+docker stop bom-radar-loop
+```
+
+### Start the Container
+```bash
+docker start bom-radar-loop
+```
+
+### Restart the Container
+```bash
+docker restart bom-radar-loop
+```
+
+### Remove the Container
+Stop and remove the container:
+```bash
+docker stop bom-radar-loop
+docker rm bom-radar-loop
+```
+
+### Update the Container
+To update after making changes to the code:
+```bash
+# Stop and remove the old container
+docker stop bom-radar-loop
+docker rm bom-radar-loop
+
+# Rebuild the image
+docker build -t bom-radar-loop .
+
+# Run the new container
+docker run -d \
+  --name bom-radar-loop \
+  -v /volume1/docker/bom_radar_downloader/config.yaml:/config/config.yaml \
+  -v /volume1/docker/bom_radar_downloader/IDR.legend.0.png:/IDR.legend.0.png \
+  -v /volume1/docker/bom_radar_downloader/images:/images \
+  --restart unless-stopped \
+  bom-radar-loop
+```
+
 ## Features
 
 ### Second Radar Support (Optional)
