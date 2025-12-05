@@ -514,8 +514,14 @@ class RadarProcessor:
                 )
                 logging.info(f"Created OSM background: {base_image.size}")
 
-                # Note: For OSM backgrounds, we don't add BoM layers
-                # The radar data will be composited directly on the OSM background
+                # Add legend overlay to OSM background
+                # The legend is needed to show rainfall intensity scale
+                legend = self.load_legend()
+                if legend:
+                    base_image.paste(legend, (0, 0), legend)
+                    logging.debug("Added legend overlay to OSM background")
+                else:
+                    logging.warning("Could not load legend for OSM background")
 
                 return base_image
 
