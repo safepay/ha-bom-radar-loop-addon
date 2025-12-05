@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2025-12-05
+
+### Changed
+- Fixed layers configuration to support multi-select checkboxes instead of radio buttons
+- Added human-readable labels and descriptions for all configuration fields
+- Improved configuration UI with clearer field names and helpful descriptions
+
+### Fixed
+- Layers selection now allows multiple overlay choices simultaneously
+- Default selections for "background" and "locations" layers maintained
+
 ## [1.0.0] - 2025-01-04
 
 ### Added
