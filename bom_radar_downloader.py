@@ -457,21 +457,23 @@ class RadarProcessor:
         """
         # Extract range indicator from product ID (IDRXYZ format)
         # X indicates range: 1=512km, 2=256km, 3=128km, 4=64km
+        # Note: Range refers to radius, so diameter is 2x (e.g., 256km range = 512km diameter)
+        # Zoom levels calculated to match radar coverage with 4x4 tile grid (1024x1024px)
         if len(product_id) >= 4:
             range_digit = product_id[3]
             zoom_map = {
-                '1': 9,   # 512km range
-                '2': 10,  # 256km range
-                '3': 11,  # 128km range
-                '4': 12   # 64km range
+                '1': 7,   # 512km range (1024km diameter coverage)
+                '2': 8,   # 256km range (512km diameter coverage)
+                '3': 9,   # 128km range (256km diameter coverage)
+                '4': 10   # 64km range (128km diameter coverage)
             }
-            zoom = zoom_map.get(range_digit, 10)
+            zoom = zoom_map.get(range_digit, 8)
             logging.debug(f"Product {product_id} range digit: {range_digit}, zoom: {zoom}")
             return zoom
         else:
-            # Default to zoom 10 (good for 256km radars)
-            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom 10")
-            return 10
+            # Default to zoom 8 (good for 256km range radars)
+            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom 8")
+            return 8
 
     def create_base_image(self, product_id):
         """
@@ -512,8 +514,14 @@ class RadarProcessor:
                 )
                 logging.info(f"Created OSM background: {base_image.size}")
 
-                # Note: For OSM backgrounds, we don't add BoM layers
-                # The radar data will be composited directly on the OSM background
+                # Add legend overlay to OSM background
+                # The legend is needed to show rainfall intensity scale
+                legend = self.load_legend()
+                if legend:
+                    base_image.paste(legend, (0, 0), legend)
+                    logging.debug("Added legend overlay to OSM background")
+                else:
+                    logging.warning("Could not load legend for OSM background")
 
                 return base_image
 

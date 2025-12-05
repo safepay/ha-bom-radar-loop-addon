@@ -48,14 +48,16 @@ output_path: www/bom_radar
 
 ### Radar Layers
 
-Choose which map layers to overlay on the radar. The **background layer is always included** (not editable). You can toggle these optional layers:
+**Note: Layer options only apply when using BoM backgrounds. If you select OpenStreetMap as your background type, these layer settings are ignored.**
+
+Choose which map layers to overlay on the radar when using BoM backgrounds:
 
 - **layer_locations**: City and town names (enabled by default)
 - **layer_catchments**: Water catchment areas
 - **layer_topography**: Topographic lines
 - **layer_range**: Range rings
 
-Simply check/uncheck the layers you want in the add-on configuration UI. The background layer is automatically included with all selections.
+The background layer is always included with BoM backgrounds. Simply check/uncheck the optional layers you want in the add-on configuration UI.
 
 ### Background Type
 
@@ -65,8 +67,14 @@ Choose between Bureau of Meteorology or OpenStreetMap backgrounds:
 background_type: bom
 ```
 
-- **bom** (default): Uses the official BoM radar background with all configured layers (background, locations, catchments, topography, range)
-- **openstreetmap**: Uses OpenStreetMap as the background for higher resolution and clearer detail
+- **bom** (default): Uses the official BoM radar background
+  - Supports customizable layers (locations, catchments, topography, range)
+  - Includes official BoM range rings and geographic markers
+
+- **openstreetmap**: Uses OpenStreetMap as the background
+  - Higher resolution and clearer detail
+  - **No layer customization** - shows OSM map tiles only
+  - Legend is still included
 
 **OpenStreetMap Background Features:**
 - **Higher Resolution**: Fetches map tiles at 1024×1024 resolution, then downsamples to 512×512 for sharper, clearer backgrounds
