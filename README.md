@@ -40,7 +40,7 @@ This addon creates animated radar loops and individual frame images from Austral
 
 3. **Configure the Addon**:
    - Go to the **Configuration** tab
-   - Set your `radar_product_id` (find yours at http://www.bom.gov.au/australia/radar/)
+   - Set your `radar_product_id` (see **Quick Reference** table below or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md) for full list)
    - Set your `timezone` (e.g., `Australia/Melbourne`)
    - Adjust other settings as needed (see Configuration section below)
 
@@ -70,22 +70,21 @@ update_interval: 600
 output_path: www/bom_radar
 ```
 
-- **radar_product_id**: Your BoM radar ID (find at http://www.bom.gov.au/australia/radar/)
+- **radar_product_id**: Your BoM radar ID (see Quick Reference table below or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md))
 - **timezone**: Your local timezone (e.g., `Australia/Melbourne`, `Australia/Sydney`)
 - **update_interval**: Seconds between updates (600 = 10 minutes, minimum 60)
 - **output_path**: Where to save images relative to `/config` (default: `www/bom_radar`)
 
 ### Radar Layers
 
-Choose which map layers to display:
+Choose which map layers to overlay on the radar. The **background layer is always included** (not editable). Toggle these optional layers in the add-on configuration UI:
 
-```yaml
-layers:
-  - background
-  - locations
-```
+- **layer_locations**: City and town names (enabled by default)
+- **layer_catchments**: Water catchment areas
+- **layer_topography**: Topographic lines
+- **layer_range**: Range rings
 
-Available options: `background`, `locations`, `catchments`, `topography`
+Simply check/uncheck the layers you want. The background layer is automatically included with all selections.
 
 ### Multiple Radar Support
 
@@ -124,19 +123,34 @@ gif_last_frame_duration: 1000
 
 ## Using Radar Images in Home Assistant
 
-### Display Animated Radar on Dashboard
+### Step 1: Add Local File Camera Integration
 
-Add a picture entity card to your dashboard:
+Add the animated radar GIF as a camera entity:
+
+1. Go to **Settings** → **Devices & Services**
+2. Click **Add Integration**
+3. Search for and select **Local File**
+4. Enter the file path: `/config/www/bom_radar/radar_animated.gif`
+5. Name it "BoM Radar Loop"
+6. Click **Submit**
+
+This creates a camera entity (e.g., `camera.bom_radar_loop`).
+
+### Step 2: Add to Dashboard with Picture Glance Card
+
+Add the radar to your dashboard:
 
 ```yaml
-type: picture-entity
-entity: camera.your_camera  # Optional
-image: /local/bom_radar/radar_animated.gif
-show_state: false
-show_name: false
+type: picture-glance
+title: Melbourne Radar
+camera_image: camera.bom_radar_loop
+camera_view: live
+entities: []
 ```
 
-Or use a simple picture card:
+The card will automatically refresh with the latest radar loop.
+
+**Alternative**: Use a simple picture card (updates less reliably):
 
 ```yaml
 type: picture
