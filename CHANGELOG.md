@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2025-12-05
+
+### Changed
+- Replaced layers array with individual boolean toggles for better UI experience
+- Background layer is now always included (not user-editable)
+- Added support for up to 4 layers: background (always on), catchments, topography, locations, and range
+- Each optional layer can now be toggled independently via checkboxes in the UI
+
+### Fixed
+- Layer configuration now provides a clearer, more intuitive interface
+- Users can easily select which radar layers to display without editing arrays
+
 ## [1.0.3] - 2025-12-05
 
 ### Fixed
