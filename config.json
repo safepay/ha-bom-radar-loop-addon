@@ -1,6 +1,6 @@
 {
   "name": "Australian BoM Radar Loop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "slug": "bom-radar-loop",
   "description": "Creates animated radar loops and individual images from Australian Bureau of Meteorology radar data for use in dashboards and LLM Vision analysis",
   "arch": ["aarch64", "amd64", "armhf", "armv7", "i386"],
@@ -13,6 +13,7 @@
     "timezone": "Australia/Melbourne",
     "update_interval": 600,
     "output_path": "www/bom_radar",
+    "background_type": "bom",
     "layer_catchments": false,
     "layer_topography": false,
     "layer_locations": true,
@@ -32,6 +33,7 @@
     "timezone": "str",
     "update_interval": "int(60,3600)",
     "output_path": "str",
+    "background_type": "list(bom|openstreetmap)",
     "layer_catchments": "bool",
     "layer_topography": "bool",
     "layer_locations": "bool",
