@@ -40,7 +40,7 @@ output_path: www/bom_radar
 
 - **radar_product_id**: Your BoM radar product ID (e.g., IDR022 for Melbourne, IDR023 for Geelong)
   - See the **Quick Reference** table below for major cities
-  - For all radars by state, see [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md) (open link in browser)
+  - For all radars by state, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>
 - **timezone**: Your local timezone (e.g., Australia/Melbourne, Australia/Sydney)
 - **update_interval**: Seconds between radar updates (600 = 10 minutes, minimum 60)
 - **output_path**: Path relative to /config where images will be saved (default: www/bom_radar)
@@ -150,7 +150,7 @@ This can be useful for AI prompts or automation.
 
 ## Finding Your Radar Product ID
 
-**See the complete [Radar Reference Guide (RADARS.md)](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md)** for a comprehensive list of all Australian radar locations organized by state.
+**See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** for a comprehensive list of all Australian radar locations organized by state.
 
 ### Quick Reference - Major Cities
 
@@ -167,7 +167,7 @@ This can be useful for AI prompts or automation.
 
 Each radar location has multiple product IDs for different coverage ranges (64km, 128km, 256km, 512km). The 128km range is recommended for most users as it provides a good balance of coverage and detail.
 
-For a complete list of all radars organized by state/territory, see [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md).
+For a complete list of all radars organized by state/territory, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>.
 
 ## Troubleshooting
 

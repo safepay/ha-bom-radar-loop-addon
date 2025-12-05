@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Removed broken http://www.bom.gov.au/australia/radar/ URL references
 - Fixed RADARS.md links to use full GitHub URLs for external access
+- RADARS.md links now open in new browser tab/window (using target="_blank")
 - Documentation now correctly directs users to RADARS.md and Quick Reference table
 
 ### Changed
