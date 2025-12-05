@@ -450,17 +450,18 @@ class RadarProcessor:
         Calculate optimal zoom level for OSM tiles based on radar range
 
         Args:
-            product_id: BOM product ID (e.g., 'IDR022')
+            product_id: BOM product ID (e.g., 'IDR632' for 256km)
 
         Returns:
             int: Optimal zoom level for map tiles
         """
-        # Extract range indicator from product ID (IDRXYZ format)
-        # X indicates range: 1=512km, 2=256km, 3=128km, 4=64km
+        # Extract range indicator from product ID
+        # The LAST digit indicates range: 1=512km, 2=256km, 3=128km, 4=64km
+        # Examples: IDR631=512km, IDR632=256km, IDR633=128km, IDR634=64km
         # Note: Range refers to radius, so diameter is 2x (e.g., 256km range = 512km diameter)
         # Lower zoom for larger coverage areas provides better text readability
         if len(product_id) >= 4:
-            range_digit = product_id[3]
+            range_digit = product_id[-1]  # Last digit indicates the range
             zoom_map = {
                 '1': 7,   # 512km range (1024km diameter coverage)
                 '2': 8,   # 256km range (512km diameter coverage)
@@ -468,7 +469,7 @@ class RadarProcessor:
                 '4': 10   # 64km range (128km diameter coverage)
             }
             zoom = zoom_map.get(range_digit, 8)
-            logging.debug(f"Product {product_id} range digit: {range_digit}, zoom: {zoom}")
+            logging.info(f"Product {product_id} - range digit: {range_digit}, zoom level: {zoom}")
             return zoom
         else:
             # Default to zoom 8 (good for 256km range radars)
