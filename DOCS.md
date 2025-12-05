@@ -47,19 +47,14 @@ output_path: www/bom_radar
 
 ### Radar Layers
 
-Choose which map layers to overlay on the radar:
+Choose which map layers to overlay on the radar. The **background layer is always included** (not editable). You can toggle these optional layers:
 
-```yaml
-layers:
-  - background
-  - locations
-```
+- **layer_locations**: City and town names (enabled by default)
+- **layer_catchments**: Water catchment areas
+- **layer_topography**: Topographic lines
+- **layer_range**: Range rings
 
-Available layers:
-- **background**: Terrain background
-- **locations**: City and town names
-- **catchments**: Water catchment areas
-- **topography**: Topographic lines
+Simply check/uncheck the layers you want in the add-on configuration UI. The background layer is automatically included with all selections.
 
 ### GIF Animation Settings
 
@@ -98,24 +93,48 @@ The radars will be layered with your primary radar on top, second radar in the m
 
 ## Using Radar Images in Home Assistant
 
-### Display Animated Radar Loop
+### Step 1: Add Local File Camera Integration
 
-Add a picture entity card to your dashboard:
+First, add the animated radar GIF as a camera entity using the **Local File** integration:
+
+1. Go to **Settings** → **Devices & Services**
+2. Click **Add Integration**
+3. Search for and select **Local File**
+4. Enter the file path: `/config/www/bom_radar/radar_animated.gif`
+5. Give it a name like "BoM Radar Loop"
+6. Click **Submit**
+
+This creates a camera entity (e.g., `camera.bom_radar_loop`) that you can use in your dashboard.
+
+### Step 2: Add to Dashboard with Picture Glance Card
+
+Now add the radar to your dashboard using a **Picture Glance** card:
+
+1. Edit your dashboard
+2. Click **Add Card**
+3. Select **Picture Glance**
+4. Configure the card:
 
 ```yaml
-type: picture-entity
-entity: camera.your_camera  # Optional
-image: /local/bom_radar/radar_animated.gif
-show_state: false
-show_name: false
+type: picture-glance
+title: Melbourne Radar
+camera_image: camera.bom_radar_loop
+camera_view: live
+entities: []
 ```
 
-Or use a picture card:
+The Picture Glance card will automatically refresh and show the latest animated radar loop.
+
+### Alternative: Simple Picture Card
+
+If you prefer a simpler static image reference (without camera entity):
 
 ```yaml
 type: picture
 image: /local/bom_radar/radar_animated.gif
 ```
+
+**Note**: The Picture Glance card with camera entity is recommended as it handles updates more reliably.
 
 ### Access Individual Frames
 
@@ -131,7 +150,7 @@ This can be useful for AI prompts or automation.
 
 ## Finding Your Radar Product ID
 
-**See the complete [Radar Reference Guide (RADARS.md)](RADARS.md)** for a comprehensive list of all Australian radar locations organized by state.
+**See the complete [Radar Reference Guide (RADARS.md)](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md)** for a comprehensive list of all Australian radar locations organized by state.
 
 ### Quick Reference - Major Cities
 
@@ -148,7 +167,7 @@ This can be useful for AI prompts or automation.
 
 Each radar location has multiple product IDs for different coverage ranges (64km, 128km, 256km, 512km). The 128km range is recommended for most users as it provides a good balance of coverage and detail.
 
-For a complete list of all radars organized by state/territory, see [RADARS.md](RADARS.md).
+For a complete list of all radars organized by state/territory, see [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md).
 
 ## Troubleshooting
 
