@@ -526,21 +526,13 @@ class RadarProcessor:
 
                 # Get actual legend dimensions
                 legend_width, legend_height = base_image.size
-                map_height = 512  # The map area is 512 pixels tall
-                legend_bar_height = 45  # The legend bar at the bottom
-
                 logging.debug(f"Legend image size: {legend_width}x{legend_height}")
 
-                # Create mask matching legend base size: opaque for map area, transparent for legend bar
-                from PIL import ImageDraw
-                mask = Image.new('L', (legend_width, legend_height), 255)  # White (opaque)
-                draw = ImageDraw.Draw(mask)
-                # Make bottom 45px transparent to preserve the legend bar
-                draw.rectangle([(0, map_height), (legend_width, legend_height)], fill=0)
-
-                # Paste OSM background onto legend base (top 512 pixels only)
-                base_image.paste(osm_resized, (0, 0), mask)
-                logging.debug(f"Composited OSM background onto legend base, preserving bottom {legend_bar_height}px legend bar")
+                # Paste OSM background (512x512) onto the top 512 pixels of legend base (512x557)
+                # Use the OSM image's alpha channel as mask to preserve transparency
+                # Since OSM is 512 tall, it only affects the top 512 pixels, leaving the 45px legend bar intact
+                base_image.paste(osm_resized, (0, 0), osm_resized)
+                logging.debug(f"Composited OSM background onto legend base, legend bar at bottom preserved")
 
                 return base_image
 
