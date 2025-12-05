@@ -508,20 +508,32 @@ class RadarProcessor:
                 )
 
                 # Downsample to 512x512 with high-quality antialiasing
-                base_image = osm_background.resize(
+                osm_resized = osm_background.resize(
                     (512, 512),
                     Image.Resampling.LANCZOS
                 )
-                logging.info(f"Created OSM background: {base_image.size}")
+                logging.info(f"Created OSM background: {osm_resized.size}")
 
-                # Add legend overlay to OSM background
-                # The legend is needed to show rainfall intensity scale
-                legend = self.load_legend()
-                if legend:
-                    base_image.paste(legend, (0, 0), legend)
-                    logging.debug("Added legend overlay to OSM background")
-                else:
-                    logging.warning("Could not load legend for OSM background")
+                # Load legend as base (just like BoM backgrounds do)
+                # The legend PNG is 512x512 with transparent area for map and opaque legend at bottom
+                base_image = self.load_legend()
+                if base_image is None:
+                    logging.error("Failed to load legend, using OSM background without legend")
+                    return osm_resized
+
+                # Composite OSM background onto the legend, preserving the legend area
+                # The legend PNG has transparency in the map area, so we paste the OSM map there
+                # We need to create a mask that is opaque everywhere EXCEPT the legend area
+                legend_height = 45
+                mask = Image.new('L', (512, 512), 255)  # White (opaque) mask
+                # Make bottom 45px transparent in the mask to preserve the legend
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(mask)
+                draw.rectangle([(0, 512 - legend_height), (512, 512)], fill=0)  # Black (transparent)
+
+                # Paste OSM background onto legend base using the mask
+                base_image.paste(osm_resized, (0, 0), mask)
+                logging.debug("Composited OSM background onto legend base, preserving legend area")
 
                 return base_image
 
