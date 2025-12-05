@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2025-12-05
+
+### Changed
+- Reverted to underscore field names (show_home_marker, home_latitude, etc.)
+- Let Home Assistant handle UI formatting automatically
+
 ## [1.0.6] - 2025-12-05
 
 ### Changed
