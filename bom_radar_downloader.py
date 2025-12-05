@@ -453,30 +453,27 @@ class RadarProcessor:
             product_id: BOM product ID (e.g., 'IDR022')
 
         Returns:
-            int: Optimal zoom level for map tiles (minimum 9 for sufficient detail)
+            int: Optimal zoom level for map tiles
         """
-        # Minimum zoom level for sufficient map detail
-        MIN_ZOOM = 9
-
         # Extract range indicator from product ID (IDRXYZ format)
         # X indicates range: 1=512km, 2=256km, 3=128km, 4=64km
         # Note: Range refers to radius, so diameter is 2x (e.g., 256km range = 512km diameter)
-        # Zoom levels calculated to match radar coverage, with minimum of 9 for detail
+        # Lower zoom for larger coverage areas provides better text readability
         if len(product_id) >= 4:
             range_digit = product_id[3]
             zoom_map = {
-                '1': 9,   # 512km range (1024km diameter) - minimum zoom for detail
-                '2': 9,   # 256km range (512km diameter) - minimum zoom for detail
-                '3': 9,   # 128km range (256km diameter)
-                '4': 10   # 64km range (128km diameter)
+                '1': 7,   # 512km range (1024km diameter coverage)
+                '2': 8,   # 256km range (512km diameter coverage)
+                '3': 9,   # 128km range (256km diameter coverage)
+                '4': 10   # 64km range (128km diameter coverage)
             }
-            zoom = zoom_map.get(range_digit, MIN_ZOOM)
+            zoom = zoom_map.get(range_digit, 8)
             logging.debug(f"Product {product_id} range digit: {range_digit}, zoom: {zoom}")
             return zoom
         else:
-            # Default to minimum zoom
-            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom {MIN_ZOOM}")
-            return MIN_ZOOM
+            # Default to zoom 8 (good for 256km range radars)
+            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom 8")
+            return 8
 
     def create_base_image(self, product_id):
         """
@@ -526,21 +523,13 @@ class RadarProcessor:
 
                 # Get actual legend dimensions
                 legend_width, legend_height = base_image.size
-                map_height = 512  # The map area is 512 pixels tall
-                legend_bar_height = 45  # The legend bar at the bottom
-
                 logging.debug(f"Legend image size: {legend_width}x{legend_height}")
 
-                # Create mask matching legend base size: opaque for map area, transparent for legend bar
-                from PIL import ImageDraw
-                mask = Image.new('L', (legend_width, legend_height), 255)  # White (opaque)
-                draw = ImageDraw.Draw(mask)
-                # Make bottom 45px transparent to preserve the legend bar
-                draw.rectangle([(0, map_height), (legend_width, legend_height)], fill=0)
-
-                # Paste OSM background onto legend base (top 512 pixels only)
-                base_image.paste(osm_resized, (0, 0), mask)
-                logging.debug(f"Composited OSM background onto legend base, preserving bottom {legend_bar_height}px legend bar")
+                # Paste OSM background (512x512) onto the top 512 pixels of legend base (512x557)
+                # Use the OSM image's alpha channel as mask to preserve transparency
+                # Since OSM is 512 tall, it only affects the top 512 pixels, leaving the 45px legend bar intact
+                base_image.paste(osm_resized, (0, 0), osm_resized)
+                logging.debug(f"Composited OSM background onto legend base, legend bar at bottom preserved")
 
                 return base_image
 
