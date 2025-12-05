@@ -525,18 +525,18 @@ class RadarProcessor:
                     return osm_resized
 
                 # Composite OSM background onto the legend, preserving the legend area
-                # The legend PNG has transparency in the map area, so we paste the OSM map there
-                # We need to create a mask that is opaque everywhere EXCEPT the legend area
-                legend_height = 45
-                mask = Image.new('L', (512, 512), 255)  # White (opaque) mask
-                # Make bottom 45px transparent in the mask to preserve the legend
+                # The legend includes the color scale bar plus background, typically 60+ pixels
+                legend_height = 60  # Increased from 45 to preserve full legend background
+
+                # Create mask: opaque (255) where we want to paste OSM, transparent (0) for legend area
                 from PIL import ImageDraw
+                mask = Image.new('L', (512, 512), 255)  # White (opaque) for map area
                 draw = ImageDraw.Draw(mask)
-                draw.rectangle([(0, 512 - legend_height), (512, 512)], fill=0)  # Black (transparent)
+                draw.rectangle([(0, 512 - legend_height), (512, 512)], fill=0)  # Black (transparent) for legend
 
                 # Paste OSM background onto legend base using the mask
                 base_image.paste(osm_resized, (0, 0), mask)
-                logging.debug("Composited OSM background onto legend base, preserving legend area")
+                logging.debug(f"Composited OSM background onto legend base, preserving bottom {legend_height}px for legend")
 
                 return base_image
 
@@ -862,9 +862,10 @@ class RadarProcessor:
                 else:
                     logging.warning("Could not load house icon, marker will be disabled")
 
-            # Save the legend area (bottom 45px) to re-apply after radar compositing
+            # Save the legend area (bottom 60px) to re-apply after radar compositing
             # This ensures the legend always appears on top, even if radar data overlaps it
-            legend_height = 45
+            # Increased from 45 to 60 to include full legend background
+            legend_height = 60
             base_width, base_height = base_image.size
             legend_area = None
 
