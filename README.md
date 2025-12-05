@@ -14,6 +14,7 @@ This addon creates animated radar loops and individual frame images from Austral
 ## Features
 
 ✨ **Easy Installation**: Install directly from the Home Assistant addon store
+🗺️ **Multiple Background Options**: Choose between BoM or OpenStreetMap backgrounds with automatic high-resolution tile caching
 🌏 **Multiple Radars**: Support for overlaying up to 3 radars for extended coverage
 🏠 **Location Marker**: Show your home location on the radar loop
 ⚡ **Automated Updates**: Continuously downloads and processes latest radar images
@@ -68,16 +69,33 @@ radar_product_id: IDR022
 timezone: Australia/Melbourne
 update_interval: 600
 output_path: www/bom_radar
+background_type: bom
 ```
 
 - **radar_product_id**: Your BoM radar ID (see Quick Reference table below or <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>)
 - **timezone**: Your local timezone (e.g., `Australia/Melbourne`, `Australia/Sydney`)
 - **update_interval**: Seconds between updates (600 = 10 minutes, minimum 60)
 - **output_path**: Where to save images relative to `/config` (default: `www/bom_radar`)
+- **background_type**: Choose `bom` (default) or `openstreetmap` for map background
+
+### Background Type
+
+Choose between Bureau of Meteorology or OpenStreetMap backgrounds:
+
+- **bom** (default): Official BoM radar background with customizable layers (locations, catchments, topography, range)
+- **openstreetmap**: Higher resolution OpenStreetMap tiles for clearer street-level detail
+
+**OpenStreetMap Features:**
+- Higher resolution (1024×1024 downsampled to 512×512)
+- Automatic zoom optimization based on radar range
+- Persistent tile caching (30-day expiry) for fast loading
+- Note: BoM layer options are only available with BoM backgrounds
 
 ### Radar Layers
 
-Choose which map layers to overlay on the radar. The **background layer is always included** (not editable). Toggle these optional layers in the add-on configuration UI:
+**Note: Layer options only apply when using BoM backgrounds.**
+
+Choose which map layers to overlay on the radar when using BoM backgrounds:
 
 - **layer_locations**: City and town names (enabled by default)
 - **layer_catchments**: Water catchment areas
@@ -123,7 +141,11 @@ gif_last_frame_duration: 1000
 
 ## Using Radar Images in Home Assistant
 
-### Step 1: Add Local File Camera Integration
+### Important: Avoiding Image Caching
+
+**To ensure your radar images update properly in Home Assistant, you must use the Local File camera integration combined with a Picture Glance card.** Using a simple picture card or direct image URLs will cause Home Assistant to cache the images and not display updates.
+
+### Step 1: Add Local File Camera Integration (Required)
 
 Add the animated radar GIF as a camera entity:
 
@@ -134,11 +156,11 @@ Add the animated radar GIF as a camera entity:
 5. Name it "BoM Radar Loop"
 6. Click **Submit**
 
-This creates a camera entity (e.g., `camera.bom_radar_loop`).
+This creates a camera entity (e.g., `camera.bom_radar_loop`) that properly handles image updates.
 
-### Step 2: Add to Dashboard with Picture Glance Card
+### Step 2: Add to Dashboard with Picture Glance Card (Required)
 
-Add the radar to your dashboard:
+Add the radar to your dashboard using the camera entity:
 
 ```yaml
 type: picture-glance
@@ -148,11 +170,14 @@ camera_view: live
 entities: []
 ```
 
-The card will automatically refresh with the latest radar loop.
+**Why this is required:** The Picture Glance card with camera_view: live properly refreshes the image and avoids browser caching issues. Using a simple picture card with a direct URL (`/local/bom_radar/radar_animated.gif`) will cause the image to be cached and not update.
 
-**Alternative**: Use a simple picture card (updates less reliably):
+### Alternative Methods (Not Recommended)
+
+Using a simple picture card will result in cached images that don't update:
 
 ```yaml
+# ⚠️ NOT RECOMMENDED - Images will be cached
 type: picture
 image: /local/bom_radar/radar_animated.gif
 ```
@@ -201,10 +226,19 @@ The addon creates `radar_last_update.txt` with UTC and local timestamps. You can
 - The BoM FTP server may occasionally be unavailable
 
 ### Images not updating
+- **Most common cause**: Not using Local File integration + Picture Glance card (see "Using Radar Images" section)
 - Check your `update_interval` setting
 - Review addon logs for errors
 - Verify you have internet connectivity
 - The BoM FTP updates every 6-10 minutes
+
+### OpenStreetMap backgrounds not working
+- First run downloads tiles and may take 30-60 seconds
+- Subsequent runs are much faster due to local caching
+- Check addon logs for tile download errors
+- Ensure your Home Assistant can access tile.openstreetmap.org
+- Addon will automatically fall back to BoM backgrounds if tiles fail
+- Tile cache stored in output directory under `tile_cache/`
 
 ### House marker not visible
 - Marker only appears on `radar_animated.gif`, not static images
