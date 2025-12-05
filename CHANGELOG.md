@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2025-12-05
+
+### Changed
+- Updated field names to use proper capitalization and formatting for UI display
+- Fields now display with spaces and punctuation (e.g., "Show home marker?", "Home latitude")
+
 ## [1.0.5] - 2025-12-05
 
 ### Changed

@@ -38,17 +38,6 @@ class Config:
             output_path = options.get('output_path', 'www/bom_radar')
             output_directory = f'/config/{output_path}'
 
-            # Construct layers array from individual boolean fields
-            layers = []
-            if options.get('layer_background', True):
-                layers.append('background')
-            if options.get('layer_catchments', False):
-                layers.append('catchments')
-            if options.get('layer_topography', False):
-                layers.append('topography')
-            if options.get('layer_locations', True):
-                layers.append('locations')
-
             return {
                 # Radar settings
                 'product_id': options.get('radar_product_id', 'IDR022'),
@@ -61,7 +50,7 @@ class Config:
                 'retry_interval': 60,
 
                 # Layers
-                'layers': layers,
+                'layers': options.get('layers', ['background', 'locations']),
 
                 # Output settings
                 'output_directory': output_directory,
@@ -78,17 +67,17 @@ class Config:
                 'log_level': 'INFO',
 
                 # Residential location marker
-                'residential_enabled': options.get('show_home_marker', False),
-                'residential_lat': float(options.get('home_latitude', -37.8136)),
-                'residential_lon': float(options.get('home_longitude', 144.9631)),
+                'residential_enabled': options.get('Show home marker?', False),
+                'residential_lat': float(options.get('Home latitude', -37.8136)),
+                'residential_lon': float(options.get('Home longitude', 144.9631)),
 
                 # Second radar
-                'second_radar_enabled': options.get('enable_second_radar', False),
-                'second_radar_product_id': options.get('second_radar_id'),
+                'second_radar_enabled': options.get('Enable second radar?', False),
+                'second_radar_product_id': options.get('Second radar ID'),
 
                 # Third radar
-                'third_radar_enabled': options.get('enable_third_radar', False),
-                'third_radar_product_id': options.get('third_radar_id'),
+                'third_radar_enabled': options.get('Enable third radar?', False),
+                'third_radar_product_id': options.get('Third radar ID'),
 
                 # Home Assistant addon mode (no SMB needed)
                 'addon_mode': True,

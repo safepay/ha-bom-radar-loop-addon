@@ -1,6 +1,6 @@
 {
   "name": "Australian BoM Radar Loop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "slug": "bom-radar-loop",
   "description": "Creates animated radar loops and individual images from Australian Bureau of Meteorology radar data for use in dashboards and LLM Vision analysis",
   "arch": ["aarch64", "amd64", "armhf", "armv7", "i386"],
@@ -19,13 +19,13 @@
     ],
     "gif_duration": 500,
     "gif_last_frame_duration": 1000,
-    "show_home_marker": false,
-    "home_latitude": -37.8136,
-    "home_longitude": 144.9631,
-    "enable_second_radar": false,
-    "second_radar_id": "IDR022",
-    "enable_third_radar": false,
-    "third_radar_id": "IDR023"
+    "Show home marker?": false,
+    "Home latitude": -37.8136,
+    "Home longitude": 144.9631,
+    "Enable second radar?": false,
+    "Second radar ID": "IDR022",
+    "Enable third radar?": false,
+    "Third radar ID": "IDR023"
   },
   "schema": {
     "radar_product_id": "str",
@@ -35,13 +35,13 @@
     "layers": ["str"],
     "gif_duration": "int(100,2000)",
     "gif_last_frame_duration": "int(100,5000)",
-    "show_home_marker": "bool",
-    "home_latitude": "float",
-    "home_longitude": "float",
-    "enable_second_radar": "bool",
-    "second_radar_id": "str",
-    "enable_third_radar": "bool",
-    "third_radar_id": "str"
+    "Show home marker?": "bool",
+    "Home latitude": "float",
+    "Home longitude": "float",
+    "Enable second radar?": "bool",
+    "Second radar ID": "str",
+    "Enable third radar?": "bool",
+    "Third radar ID": "str"
   },
   "url": "https://github.com/safepay/ha-bom-radar-loop-addon"
 }
