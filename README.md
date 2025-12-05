@@ -4,15 +4,16 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Addon-blue.svg)](https://www.home-assistant.io/)
 
-Animated radar loops from Australian Bureau of Meteorology data for Home Assistant dashboards.
+Animated radar loops and individual radar frames from Australian Bureau of Meteorology data for Home Assistant dashboards and AI-powered weather analysis.
 
 ## Features
 
+- 🤖 **LLM Vision Ready**: Individual PNG frames for AI-powered storm detection and analysis
 - 🗺️ **Choose Background**: BoM official or OpenStreetMap (higher resolution with tile caching)
+- 🎬 **Animated Loops**: Smooth GIF animations for dashboards
 - 🌏 **Multiple Radars**: Overlay up to 3 radars for extended coverage
 - 🏠 **Location Marker**: Show your home on the radar
 - ⚡ **Auto-Updates**: Continuously fetches latest radar images
-- 🎨 **Customizable**: Choose layers, update intervals, GIF settings
 
 ## Installation
 
@@ -50,6 +51,21 @@ entities: []
 ```
 
 **Why?** Simple picture cards cache images and won't update. Local File camera + Picture Glance ensures proper refreshing.
+
+### LLM Vision Analysis
+
+Individual radar frames are perfect for AI analysis:
+
+```yaml
+type: picture
+image: /local/bom_radar/image_5.png  # Most recent frame
+```
+
+Five frames available: `image_1.png` (oldest) to `image_5.png` (newest). Use with Claude Vision, GPT-4 Vision, or other LLM tools for:
+- Storm detection and tracking
+- Rainfall intensity analysis
+- Weather pattern recognition
+- Automated weather alerts
 
 ## Configuration
 
@@ -117,11 +133,11 @@ residential_longitude: 144.9631
 ## Output Files
 
 Located in `/config/www/bom_radar/`:
-- `radar_animated.gif` - Animated loop (5 frames)
-- `image_1.png` to `image_5.png` - Individual frames
-- `radar_last_update.txt` - Timestamp info
+- `radar_animated.gif` - Animated loop (5 frames) for dashboards
+- `image_1.png` to `image_5.png` - Individual frames for LLM Vision analysis
+- `radar_last_update.txt` - Timestamp information
 
-Access via `/local/bom_radar/filename` in dashboards.
+Access via `/local/bom_radar/filename` in dashboards and automations.
 
 ## Documentation
 
