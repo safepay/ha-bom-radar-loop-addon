@@ -38,6 +38,20 @@ class Config:
             output_path = options.get('output_path', 'www/bom_radar')
             output_directory = f'/config/{output_path}'
 
+            # Build layers list from boolean options
+            # Background is always included first (not editable)
+            layers = ['background']
+
+            # Add optional layers based on user selection (max 4 layers total including background)
+            if options.get('layer_catchments', False):
+                layers.append('catchments')
+            if options.get('layer_topography', False):
+                layers.append('topography')
+            if options.get('layer_locations', False):
+                layers.append('locations')
+            if options.get('layer_range', False):
+                layers.append('range')
+
             return {
                 # Radar settings
                 'product_id': options.get('radar_product_id', 'IDR022'),
@@ -50,7 +64,7 @@ class Config:
                 'retry_interval': 60,
 
                 # Layers
-                'layers': options.get('layers', ['background', 'locations']),
+                'layers': layers,
 
                 # Output settings
                 'output_directory': output_directory,
