@@ -2,42 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.7] - 2025-12-05
-
-### Changed
-- Reverted to underscore field names (show_home_marker, home_latitude, etc.)
-- Let Home Assistant handle UI formatting automatically
-
-## [1.0.6] - 2025-12-05
-
-### Changed
-- Updated field names to use proper capitalization and formatting for UI display
-- Fields now display with spaces and punctuation (e.g., "Show home marker?", "Home latitude")
-
-## [1.0.5] - 2025-12-05
-
-### Changed
-- Reverted layers back to string array format (["str"])
-- Kept improved field names for better UI readability
-
-## [1.0.4] - 2025-12-05
-
-### Changed
-- Converted layers from array field to individual boolean toggles for each layer
-- Renamed config fields for better readability in UI:
-  - `residential_location_enabled` → `show_home_marker`
-  - `residential_latitude` → `home_latitude`
-  - `residential_longitude` → `home_longitude`
-  - `second_radar_enabled` → `enable_second_radar`
-  - `second_radar_product_id` → `second_radar_id`
-  - `third_radar_enabled` → `enable_third_radar`
-  - `third_radar_product_id` → `third_radar_id`
-
-### Fixed
-- Fixed issue where layers could not be added back after removal
-- Each layer now has its own checkbox toggle that can be independently enabled/disabled
-- Default layers: background and locations enabled
-
 ## [1.0.3] - 2025-12-05
 
 ### Fixed
