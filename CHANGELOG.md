@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2025-12-05
+
+### Fixed
+- Removed broken http://www.bom.gov.au/australia/radar/ URL references
+- Fixed RADARS.md links to use full GitHub URLs for external access
+- Documentation now correctly directs users to RADARS.md and Quick Reference table
+
+### Changed
+- Updated DOCS.md with comprehensive Home Assistant setup instructions
+- Added detailed Local File camera integration setup steps
+- Added Picture Glance card configuration examples for dashboard
+- Updated README.md with improved radar setup instructions
+- Improved guidance for finding radar product IDs
+
+### Added
+- GitHub issue templates for bug reports and feature requests
+- Standardized issue reporting with configuration and log sections
+- Feature request template for community enhancements
+
+### Removed
+- Cleaned up temporary __pycache__ directory
+
 ## [1.0.4] - 2025-12-05
 
 ### Changed
