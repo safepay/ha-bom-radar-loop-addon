@@ -11,6 +11,8 @@ WORKDIR /app
 
 # Copy and install requirements first (better caching)
 COPY requirements.txt ./
+
+# Install Python dependencies (--break-system-packages is required for Python 3.12+ in Alpine)
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application files
