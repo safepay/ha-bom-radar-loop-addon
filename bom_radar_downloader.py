@@ -6,6 +6,9 @@ import os
 import sys
 import asyncio
 import logging
+import time
+import urllib.request
+import urllib.error
 from PIL import Image
 from datetime import datetime
 from pathlib import Path
@@ -13,11 +16,213 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.0'
+VERSION = '1.0.6'
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
 CONFIG_FILE = Path('/config/config.yaml')
+
+
+class MapTileProvider:
+    """Handles fetching and caching of OpenStreetMap tiles"""
+
+    # OpenStreetMap tile server URL
+    OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+    # User-Agent required by OSM tile usage policy
+    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.6 (https://github.com/safepay/ha-bom-radar-loop-addon)"
+
+    # Cache expiry: 30 days (map tiles rarely change)
+    CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
+
+    def __init__(self, cache_dir):
+        """
+        Initialize the map tile provider
+
+        Args:
+            cache_dir: Directory path for persistent tile cache
+        """
+        self.cache_dir = Path(cache_dir)
+        self.memory_cache = {}  # Session cache for faster access
+
+        # Create cache directory if it doesn't exist
+        if not self.cache_dir.exists():
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Created tile cache directory: {self.cache_dir}")
+
+    @staticmethod
+    def latlon_to_tile(lat, lon, zoom):
+        """
+        Convert latitude/longitude to tile coordinates at given zoom level
+
+        Args:
+            lat: Latitude in decimal degrees
+            lon: Longitude in decimal degrees
+            zoom: Zoom level (0-19)
+
+        Returns:
+            Tuple of (tile_x, tile_y)
+        """
+        lat_rad = math.radians(lat)
+        n = 2.0 ** zoom
+        tile_x = int((lon + 180.0) / 360.0 * n)
+        tile_y = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+        return (tile_x, tile_y)
+
+    @staticmethod
+    def tile_to_latlon(tile_x, tile_y, zoom):
+        """
+        Convert tile coordinates to latitude/longitude of tile's NW corner
+
+        Args:
+            tile_x: Tile X coordinate
+            tile_y: Tile Y coordinate
+            zoom: Zoom level
+
+        Returns:
+            Tuple of (lat, lon)
+        """
+        n = 2.0 ** zoom
+        lon = tile_x / n * 360.0 - 180.0
+        lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * tile_y / n)))
+        lat = math.degrees(lat_rad)
+        return (lat, lon)
+
+    def fetch_tile(self, z, x, y):
+        """
+        Fetch a single tile with caching
+
+        Args:
+            z: Zoom level
+            x: Tile X coordinate
+            y: Tile Y coordinate
+
+        Returns:
+            PIL Image object (256x256 pixels)
+        """
+        # Check memory cache first
+        cache_key = f"{z}/{x}/{y}"
+        if cache_key in self.memory_cache:
+            logging.debug(f"Tile {cache_key} loaded from memory cache")
+            return self.memory_cache[cache_key]
+
+        # Check disk cache
+        cache_path = self.cache_dir / str(z) / str(x) / f"{y}.png"
+
+        if cache_path.exists():
+            # Check if cache is still valid (not expired)
+            cache_age = time.time() - cache_path.stat().st_mtime
+            if cache_age < self.CACHE_EXPIRY_SECONDS:
+                logging.debug(f"Tile {cache_key} loaded from disk cache (age: {cache_age/86400:.1f} days)")
+                tile = Image.open(cache_path).convert('RGBA')
+                self.memory_cache[cache_key] = tile
+                return tile
+            else:
+                logging.debug(f"Tile {cache_key} cache expired, re-downloading")
+
+        # Download tile
+        url = self.OSM_TILE_URL.format(z=z, x=x, y=y)
+        logging.info(f"Downloading tile: {cache_key}")
+
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': self.USER_AGENT})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                tile_data = response.read()
+                tile = Image.open(io.BytesIO(tile_data)).convert('RGBA')
+
+            # Save to disk cache
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tile.save(cache_path, 'PNG')
+            logging.debug(f"Tile {cache_key} saved to disk cache")
+
+            # Save to memory cache
+            self.memory_cache[cache_key] = tile
+
+            return tile
+
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            logging.error(f"Failed to download tile {cache_key}: {e}")
+            # Return a blank tile as fallback
+            return Image.new('RGBA', (256, 256), (200, 200, 200, 255))
+        except Exception as e:
+            logging.error(f"Unexpected error downloading tile {cache_key}: {e}")
+            return Image.new('RGBA', (256, 256), (200, 200, 200, 255))
+
+    def create_background(self, lat, lon, zoom, size=1024):
+        """
+        Create a stitched map background centered on given coordinates
+
+        Args:
+            lat: Center latitude in decimal degrees
+            lon: Center longitude in decimal degrees
+            zoom: Zoom level
+            size: Output size in pixels (default: 1024x1024)
+
+        Returns:
+            PIL Image object (size x size pixels)
+        """
+        logging.info(f"Creating OSM background: lat={lat}, lon={lon}, zoom={zoom}, size={size}x{size}")
+
+        # Get center tile coordinates
+        center_tile_x, center_tile_y = self.latlon_to_tile(lat, lon, zoom)
+
+        # For 1024x1024 output (size/256 = 4 tiles), we need a 4x4 grid
+        # Center the grid around the center tile
+        tiles_per_side = size // 256
+        half_tiles = tiles_per_side // 2
+
+        # Calculate tile range
+        start_x = center_tile_x - half_tiles
+        start_y = center_tile_y - half_tiles
+
+        # Create the stitched image
+        stitched = Image.new('RGBA', (tiles_per_side * 256, tiles_per_side * 256))
+
+        # Fetch and paste each tile
+        for dy in range(tiles_per_side):
+            for dx in range(tiles_per_side):
+                tile_x = start_x + dx
+                tile_y = start_y + dy
+
+                tile = self.fetch_tile(zoom, tile_x, tile_y)
+
+                paste_x = dx * 256
+                paste_y = dy * 256
+                stitched.paste(tile, (paste_x, paste_y))
+
+        logging.debug(f"Stitched {tiles_per_side}x{tiles_per_side} tiles into {stitched.size} image")
+
+        # Calculate pixel offset to center on exact lat/lon
+        # (since tile coordinates are discrete, we need sub-tile precision)
+        n = 2.0 ** zoom
+        exact_x = (lon + 180.0) / 360.0 * n
+        exact_y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
+
+        # Offset within the stitched image
+        offset_x = (exact_x - start_x) * 256
+        offset_y = (exact_y - start_y) * 256
+
+        # Crop to center the image on exact coordinates
+        crop_left = int(offset_x - size / 2)
+        crop_top = int(offset_y - size / 2)
+        crop_right = crop_left + size
+        crop_bottom = crop_top + size
+
+        # Ensure we don't crop outside the stitched image bounds
+        if crop_left >= 0 and crop_top >= 0 and crop_right <= stitched.width and crop_bottom <= stitched.height:
+            centered = stitched.crop((crop_left, crop_top, crop_right, crop_bottom))
+            logging.debug(f"Cropped to {size}x{size} centered on exact coordinates")
+        else:
+            # If cropping would go out of bounds, just center it roughly
+            logging.warning(f"Crop bounds exceeded, using rough centering")
+            centered = stitched.crop((
+                (stitched.width - size) // 2,
+                (stitched.height - size) // 2,
+                (stitched.width + size) // 2,
+                (stitched.height + size) // 2
+            ))
+
+        return centered
 
 
 class Config:
@@ -56,6 +261,9 @@ class Config:
                 # Radar settings
                 'product_id': options.get('radar_product_id', 'IDR022'),
                 'timezone': options.get('timezone', 'Australia/Melbourne'),
+
+                # Background type
+                'background_type': options.get('background_type', 'bom'),
 
                 # Scheduler settings (always enabled in addon mode)
                 'scheduler_enabled': True,
@@ -120,6 +328,9 @@ class Config:
                 'product_id': os.getenv('PRODUCT_ID', radar.get('product_id', 'IDR022')),
                 'timezone': os.getenv('TIMEZONE', radar.get('timezone', 'Australia/Melbourne')),
 
+                # Background type
+                'background_type': os.getenv('BACKGROUND_TYPE', radar.get('background_type', 'bom')),
+
                 # Scheduler settings
                 'scheduler_enabled': os.getenv('SCHEDULER_ENABLED', str(scheduler.get('enabled', True))).lower() == 'true',
                 'update_interval': int(os.getenv('UPDATE_INTERVAL', scheduler.get('update_interval', 600))),
@@ -175,14 +386,18 @@ class Config:
 
 class RadarProcessor:
     """Processes radar images from BOM FTP"""
-    
+
     def __init__(self, config):
         self.config = config
         self.frames = []
         self.saved_filenames = []
-        
+
         # Create output directory if it doesn't exist
         os.makedirs(self.config['output_directory'], exist_ok=True)
+
+        # Initialize map tile provider for OSM backgrounds
+        tile_cache_dir = os.path.join(self.config['output_directory'], 'tile_cache')
+        self.tile_provider = MapTileProvider(tile_cache_dir)
     
     def load_legend(self):
         """Load the legend image"""
@@ -229,6 +444,130 @@ class RadarProcessor:
         except Exception as e:
             logging.error(f"Error loading house icon: {e}")
             return None
+
+    def get_optimal_zoom(self, product_id):
+        """
+        Calculate optimal zoom level for OSM tiles based on radar range
+
+        Args:
+            product_id: BOM product ID (e.g., 'IDR022')
+
+        Returns:
+            int: Optimal zoom level for map tiles
+        """
+        # Extract range indicator from product ID (IDRXYZ format)
+        # X indicates range: 1=512km, 2=256km, 3=128km, 4=64km
+        if len(product_id) >= 4:
+            range_digit = product_id[3]
+            zoom_map = {
+                '1': 9,   # 512km range
+                '2': 10,  # 256km range
+                '3': 11,  # 128km range
+                '4': 12   # 64km range
+            }
+            zoom = zoom_map.get(range_digit, 10)
+            logging.debug(f"Product {product_id} range digit: {range_digit}, zoom: {zoom}")
+            return zoom
+        else:
+            # Default to zoom 10 (good for 256km radars)
+            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom 10")
+            return 10
+
+    def create_base_image(self, product_id):
+        """
+        Create base image with selected background type (BoM or OSM)
+
+        Args:
+            product_id: BOM product ID
+
+        Returns:
+            PIL Image object (512x512 RGBA)
+        """
+        background_type = self.config['background_type']
+
+        if background_type == 'openstreetmap':
+            logging.info(f"Creating OpenStreetMap background for {product_id}")
+
+            # Get radar coordinates from metadata
+            if product_id not in RADAR_METADATA:
+                logging.error(f"Product {product_id} not found in radar metadata, falling back to BoM background")
+                return self.create_bom_base_image(product_id)
+
+            lat, lon, km_per_pixel = RADAR_METADATA[product_id]
+            logging.info(f"Radar center: lat={lat}, lon={lon}")
+
+            # Calculate optimal zoom level
+            zoom = self.get_optimal_zoom(product_id)
+
+            # Create high-resolution OSM background (1024x1024)
+            try:
+                osm_background = self.tile_provider.create_background(
+                    lat, lon, zoom, size=1024
+                )
+
+                # Downsample to 512x512 with high-quality antialiasing
+                base_image = osm_background.resize(
+                    (512, 512),
+                    Image.Resampling.LANCZOS
+                )
+                logging.info(f"Created OSM background: {base_image.size}")
+
+                # Note: For OSM backgrounds, we don't add BoM layers
+                # The radar data will be composited directly on the OSM background
+
+                return base_image
+
+            except Exception as e:
+                logging.error(f"Failed to create OSM background: {e}")
+                logging.info("Falling back to BoM background")
+                return self.create_bom_base_image(product_id)
+
+        else:
+            # Use BoM background with layers
+            return self.create_bom_base_image(product_id)
+
+    def create_bom_base_image(self, product_id):
+        """
+        Create base image using BoM layers (original behavior)
+
+        Args:
+            product_id: BOM product ID
+
+        Returns:
+            PIL Image object (512x512 RGBA) with legend, background, and optional layers
+        """
+        logging.info(f"Creating BoM background for {product_id}")
+
+        # Load legend as base
+        base_image = self.load_legend()
+        if base_image is None:
+            logging.error("Failed to load legend, creating blank image")
+            base_image = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
+
+        # Connect to FTP and build composite layers
+        try:
+            ftp = ftplib.FTP('ftp.bom.gov.au')
+            ftp.login()
+            ftp.cwd('anon/gen/radar_transparencies/')
+
+            for layer in self.config['layers']:
+                filename = f"{product_id}.{layer}.png"
+                logging.debug(f"Downloading layer: {layer}")
+                file_obj = io.BytesIO()
+                ftp.retrbinary('RETR ' + filename, file_obj.write)
+                file_obj.seek(0)
+
+                image = Image.open(file_obj).convert('RGBA')
+                base_image.paste(image, (0, 0), image)
+                logging.debug(f"Added layer: {layer}")
+
+            ftp.quit()
+            logging.info(f"BoM base image with all layers created: {base_image.size}")
+
+        except Exception as e:
+            logging.error(f"Error creating BoM base image: {e}")
+
+        return base_image
 
     def get_radar_metadata(self, product_id):
         """Get radar center coordinates and scale from product ID
@@ -483,11 +822,11 @@ class RadarProcessor:
         third_radar_product_id = self.config.get('third_radar_product_id')
 
         try:
-            # Load the legend image as the base
-            base_image = self.load_legend()
+            # Create base image (BoM or OSM background)
+            base_image = self.create_base_image(product_id)
 
             if base_image is None:
-                logging.error("Cannot proceed without legend image")
+                logging.error("Cannot proceed without base image")
                 return False
 
             # Load house icon if residential location is enabled
@@ -500,39 +839,23 @@ class RadarProcessor:
                 else:
                     logging.warning("Could not load house icon, marker will be disabled")
 
-            # Connect to FTP server
+            # Save the legend area for BoM backgrounds (bottom 45px) to re-apply after radar compositing
+            # This ensures the legend always appears on top, even if second radar overlaps it
+            # For OSM backgrounds, we don't have a legend to extract
+            legend_area = None
+            if self.config['background_type'] == 'bom':
+                legend_height = 45
+                base_width, base_height = base_image.size
+                if base_height > legend_height:
+                    legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
+                    logging.debug(f"Saved legend area: {legend_area.size}")
+                else:
+                    logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
+
+            # Connect to FTP server for radar data
             logging.info("Connecting to BOM FTP server...")
             ftp = ftplib.FTP('ftp.bom.gov.au')
             ftp.login()
-
-            # Build composite layers on top of the legend base
-            ftp.cwd('anon/gen/radar_transparencies/')
-
-            for layer in self.config['layers']:
-                filename = f"{product_id}.{layer}.png"
-                logging.debug(f"Downloading layer: {layer}")
-                file_obj = io.BytesIO()
-                ftp.retrbinary('RETR ' + filename, file_obj.write)
-                file_obj.seek(0)
-
-                image = Image.open(file_obj).convert('RGBA')
-                base_image.paste(image, (0, 0), image)
-                logging.debug(f"Added layer: {layer}")
-
-            logging.info(f"Base image with all layers size: {base_image.size}")
-
-            # Save the legend area (bottom 45px) to re-apply after radar compositing
-            # This ensures the legend always appears on top, even if second radar overlaps it
-            legend_height = 45
-            base_width, base_height = base_image.size
-            if base_height > legend_height:
-                legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
-                logging.debug(f"Saved legend area: {legend_area.size}")
-            else:
-                legend_area = None
-                logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
-
-            # Get radar images
             ftp.cwd('/anon/gen/radar/')
 
             # Get all matching radar files for primary radar

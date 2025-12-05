@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2025-12-05
+
+### Added
+- **OpenStreetMap Background Support**: New option to use OpenStreetMap as radar background instead of BoM backgrounds
+  - Higher resolution backgrounds (1024×1024 downsampled to 512×512 for improved clarity)
+  - Automatic zoom level optimization based on radar range (512km/256km/128km/64km)
+  - Persistent tile caching with 30-day expiry for fast subsequent runs
+  - Automatic fallback to BoM backgrounds if tile download fails
+- New `background_type` configuration option with choices: "bom" (default) or "openstreetmap"
+- MapTileProvider class for efficient tile fetching and caching
+- Tile cache directory created automatically in output path (`tile_cache/`)
+
+### Changed
+- Refactored base image creation into separate methods for better code organization
+- Split `create_base_image()` into `create_bom_base_image()` and OpenStreetMap logic
+- Both PNG frames and GIF now use the selected background type
+- BoM layer options (catchments, topography, locations, range) only apply when using BoM backgrounds
+
+### Technical
+- Added `urllib.request` and `urllib.error` for tile downloads (no new dependencies, stdlib only)
+- Implemented Web Mercator projection calculations for lat/lon to tile coordinate conversion
+- Added automatic tile stitching and sub-tile precision centering
+- Respects OpenStreetMap tile usage policy with proper User-Agent headers
+
 ## [1.0.5] - 2025-12-05
 
 ### Fixed

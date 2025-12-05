@@ -7,6 +7,7 @@ Creates animated radar loops and individual images from Australian Bureau of Met
 - **Automated Radar Downloads**: Fetches the latest radar images from the Australian Bureau of Meteorology FTP server
 - **Animated GIF Creation**: Generates smooth radar loop animations for your dashboards
 - **Individual Frame Export**: Saves separate radar images for use with LLM Vision analysis
+- **Multiple Background Options**: Choose between BoM or OpenStreetMap backgrounds with automatic high-resolution tile caching
 - **Multiple Radar Overlay**: Supports overlaying up to 3 radars for extended coverage
 - **Residential Location Marker**: Add a house icon showing your location on the radar
 - **Customizable Layers**: Choose which map layers to display (background, locations, catchments, topography)
@@ -55,6 +56,34 @@ Choose which map layers to overlay on the radar. The **background layer is alway
 - **layer_range**: Range rings
 
 Simply check/uncheck the layers you want in the add-on configuration UI. The background layer is automatically included with all selections.
+
+### Background Type
+
+Choose between Bureau of Meteorology or OpenStreetMap backgrounds:
+
+```yaml
+background_type: bom
+```
+
+- **bom** (default): Uses the official BoM radar background with all configured layers (background, locations, catchments, topography, range)
+- **openstreetmap**: Uses OpenStreetMap as the background for higher resolution and clearer detail
+
+**OpenStreetMap Background Features:**
+- **Higher Resolution**: Fetches map tiles at 1024×1024 resolution, then downsamples to 512×512 for sharper, clearer backgrounds
+- **Automatic Zoom Optimization**: Zoom level is automatically calculated based on your radar's range (512km, 256km, 128km, or 64km)
+- **Persistent Caching**: Map tiles are cached locally for 30 days, providing near-instant background loading on subsequent runs and reducing load on OpenStreetMap servers
+- **Applies to Both PNG and GIF**: Both individual frame PNGs and the animated GIF will use the selected background
+- **Note**: BoM layer options (catchments, topography, locations, range) are only available when using BoM backgrounds
+
+**When to use OpenStreetMap:**
+- You want clearer, more detailed street maps and landmarks
+- You're using the radar for local area monitoring where street-level detail matters
+- You prefer modern map styling over BoM's basic background
+
+**When to use BoM (default):**
+- You want the official BoM layers (catchments, topography, etc.)
+- You prefer BoM's radar-specific background with range rings and geographic markers
+- You want consistency with official BoM radar products
 
 ### GIF Animation Settings
 
@@ -191,6 +220,14 @@ For a complete list of all radars organized by state/territory, see <a href="htt
 - Verify `residential_location_enabled: true`
 - Check your latitude/longitude coordinates are correct
 - Ensure coordinates fall within your radar's coverage area
+
+### OpenStreetMap backgrounds not working
+- First run downloads tiles and may take 30-60 seconds
+- Subsequent runs are much faster due to local caching
+- Check addon logs for tile download errors
+- Ensure your Home Assistant instance can access tile.openstreetmap.org
+- If tiles fail to download, the addon will automatically fall back to BoM backgrounds
+- Tile cache is stored in your output directory under `tile_cache/`
 
 ## Support
 
