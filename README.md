@@ -40,7 +40,7 @@ This addon creates animated radar loops and individual frame images from Austral
 
 3. **Configure the Addon**:
    - Go to the **Configuration** tab
-   - Set your `radar_product_id` (see **Quick Reference** table below or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md) for full list)
+   - Set your `radar_product_id` (see **Quick Reference** table below or <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a> for full list)
    - Set your `timezone` (e.g., `Australia/Melbourne`)
    - Adjust other settings as needed (see Configuration section below)
 
@@ -70,7 +70,7 @@ update_interval: 600
 output_path: www/bom_radar
 ```
 
-- **radar_product_id**: Your BoM radar ID (see Quick Reference table below or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md))
+- **radar_product_id**: Your BoM radar ID (see Quick Reference table below or <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>)
 - **timezone**: Your local timezone (e.g., `Australia/Melbourne`, `Australia/Sydney`)
 - **update_interval**: Seconds between updates (600 = 10 minutes, minimum 60)
 - **output_path**: Where to save images relative to `/config` (default: `www/bom_radar`)
@@ -172,7 +172,7 @@ The addon creates `radar_last_update.txt` with UTC and local timestamps. You can
 
 ## Finding Your Radar Product ID
 
-**📍 See the complete [Radar Reference Guide (RADARS.md)](RADARS.md)** - All Australian radars organized by state with product IDs and coordinates.
+**📍 See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** - All Australian radars organized by state with product IDs and coordinates.
 
 ### Quick Reference - Major Cities
 
