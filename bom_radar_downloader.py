@@ -453,30 +453,27 @@ class RadarProcessor:
             product_id: BOM product ID (e.g., 'IDR022')
 
         Returns:
-            int: Optimal zoom level for map tiles (minimum 9 for sufficient detail)
+            int: Optimal zoom level for map tiles
         """
-        # Minimum zoom level for sufficient map detail
-        MIN_ZOOM = 9
-
         # Extract range indicator from product ID (IDRXYZ format)
         # X indicates range: 1=512km, 2=256km, 3=128km, 4=64km
         # Note: Range refers to radius, so diameter is 2x (e.g., 256km range = 512km diameter)
-        # Zoom levels calculated to match radar coverage, with minimum of 9 for detail
+        # Lower zoom for larger coverage areas provides better text readability
         if len(product_id) >= 4:
             range_digit = product_id[3]
             zoom_map = {
-                '1': 9,   # 512km range (1024km diameter) - minimum zoom for detail
-                '2': 9,   # 256km range (512km diameter) - minimum zoom for detail
-                '3': 9,   # 128km range (256km diameter)
-                '4': 10   # 64km range (128km diameter)
+                '1': 7,   # 512km range (1024km diameter coverage)
+                '2': 8,   # 256km range (512km diameter coverage)
+                '3': 9,   # 128km range (256km diameter coverage)
+                '4': 10   # 64km range (128km diameter coverage)
             }
-            zoom = zoom_map.get(range_digit, MIN_ZOOM)
+            zoom = zoom_map.get(range_digit, 8)
             logging.debug(f"Product {product_id} range digit: {range_digit}, zoom: {zoom}")
             return zoom
         else:
-            # Default to minimum zoom
-            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom {MIN_ZOOM}")
-            return MIN_ZOOM
+            # Default to zoom 8 (good for 256km range radars)
+            logging.warning(f"Could not determine range from product ID {product_id}, using default zoom 8")
+            return 8
 
     def create_base_image(self, product_id):
         """
