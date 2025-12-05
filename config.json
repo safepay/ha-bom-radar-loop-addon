@@ -1,6 +1,6 @@
 {
   "name": "Australian BoM Radar Loop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "slug": "bom-radar-loop",
   "description": "Creates animated radar loops and individual images from Australian Bureau of Meteorology radar data for use in dashboards and LLM Vision analysis",
   "arch": ["aarch64", "amd64", "armhf", "armv7", "i386"],
@@ -28,97 +28,20 @@
     "third_radar_product_id": "IDR023"
   },
   "schema": {
-    "radar_product_id": {
-      "name": "Radar Product ID",
-      "description": "Primary radar product ID (e.g., IDR022 for Melbourne 256km). See RADARS.md for all available radars.",
-      "required": true,
-      "type": "str"
-    },
-    "timezone": {
-      "name": "Timezone",
-      "description": "Timezone for radar timestamps (e.g., Australia/Melbourne, Australia/Sydney)",
-      "required": true,
-      "type": "str"
-    },
-    "update_interval": {
-      "name": "Update Interval (seconds)",
-      "description": "How often to check for new radar images",
-      "required": true,
-      "type": "int",
-      "min": 60,
-      "max": 3600
-    },
-    "output_path": {
-      "name": "Output Path",
-      "description": "Path relative to /config/ where images will be saved (default: www/bom_radar)",
-      "required": true,
-      "type": "str"
-    },
-    "layers": {
-      "name": "Radar Layers",
-      "description": "Select which radar overlay layers to include",
-      "required": true,
-      "type": "list",
-      "options": ["background", "catchments", "topography", "locations"]
-    },
-    "gif_duration": {
-      "name": "GIF Frame Duration (ms)",
-      "description": "Duration each frame is displayed in the animated GIF",
-      "required": true,
-      "type": "int",
-      "min": 100,
-      "max": 2000
-    },
-    "gif_last_frame_duration": {
-      "name": "Last Frame Duration (ms)",
-      "description": "Duration the final frame is displayed (creates a pause effect)",
-      "required": true,
-      "type": "int",
-      "min": 100,
-      "max": 5000
-    },
-    "residential_location_enabled": {
-      "name": "Show Home Location",
-      "description": "Add a house icon marker at your residential location",
-      "required": true,
-      "type": "bool"
-    },
-    "residential_latitude": {
-      "name": "Home Latitude",
-      "description": "Latitude of your home location (e.g., -37.8136)",
-      "required": true,
-      "type": "float"
-    },
-    "residential_longitude": {
-      "name": "Home Longitude",
-      "description": "Longitude of your home location (e.g., 144.9631)",
-      "required": true,
-      "type": "float"
-    },
-    "second_radar_enabled": {
-      "name": "Enable Second Radar",
-      "description": "Overlay a second radar for extended coverage",
-      "required": true,
-      "type": "bool"
-    },
-    "second_radar_product_id": {
-      "name": "Second Radar Product ID",
-      "description": "Product ID for the second radar overlay",
-      "required": true,
-      "type": "str"
-    },
-    "third_radar_enabled": {
-      "name": "Enable Third Radar",
-      "description": "Overlay a third radar for maximum coverage",
-      "required": true,
-      "type": "bool"
-    },
-    "third_radar_product_id": {
-      "name": "Third Radar Product ID",
-      "description": "Product ID for the third radar overlay",
-      "required": true,
-      "type": "str"
-    }
+    "radar_product_id": "str",
+    "timezone": "str",
+    "update_interval": "int(60,3600)",
+    "output_path": "str",
+    "layers": ["match(background)?", "match(catchments)?", "match(topography)?", "match(locations)?"],
+    "gif_duration": "int(100,2000)",
+    "gif_last_frame_duration": "int(100,5000)",
+    "residential_location_enabled": "bool",
+    "residential_latitude": "float",
+    "residential_longitude": "float",
+    "second_radar_enabled": "bool",
+    "second_radar_product_id": "str",
+    "third_radar_enabled": "bool",
+    "third_radar_product_id": "str"
   },
   "url": "https://github.com/safepay/ha-bom-radar-loop-addon"
 }

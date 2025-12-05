@@ -2,16 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2025-12-05
+
+### Fixed
+- Fixed config.json schema to use correct Home Assistant format
+- Layers configuration now properly supports multi-select checkboxes using match() patterns
+- Default selections for "background" and "locations" layers maintained
+
 ## [1.0.1] - 2025-12-05
 
 ### Changed
-- Fixed layers configuration to support multi-select checkboxes instead of radio buttons
-- Added human-readable labels and descriptions for all configuration fields
-- Improved configuration UI with clearer field names and helpful descriptions
-
-### Fixed
-- Layers selection now allows multiple overlay choices simultaneously
-- Default selections for "background" and "locations" layers maintained
+- Fixed layers configuration to support multi-select checkboxes instead of radio buttons (incorrect format - fixed in 1.0.2)
 
 ## [1.0.0] - 2025-01-04
 
