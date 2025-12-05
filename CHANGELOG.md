@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2025-12-05
+
+### Fixed
+- Simplified layers schema to use ["str"] format for proper multi-select support
+- Fixed "does not match regular expression" error when saving configuration
+
 ## [1.0.2] - 2025-12-05
 
 ### Fixed
