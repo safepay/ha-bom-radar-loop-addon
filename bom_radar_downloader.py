@@ -163,20 +163,27 @@ class MapTileProvider:
         """
         logging.info(f"Creating OSM background: lat={lat}, lon={lon}, zoom={zoom}, size={size}x{size}")
 
-        # Get center tile coordinates
-        center_tile_x, center_tile_y = self.latlon_to_tile(lat, lon, zoom)
+        # Calculate exact tile coordinates (with fractional part for sub-tile precision)
+        n = 2.0 ** zoom
+        exact_x = (lon + 180.0) / 360.0 * n
+        exact_y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
 
-        # For 1024x1024 output (size/256 = 4 tiles), we need a 4x4 grid
-        # Center the grid around the center tile
-        tiles_per_side = size // 256
+        # Get integer tile coordinates
+        center_tile_x = int(exact_x)
+        center_tile_y = int(exact_y)
+
+        # Fetch a larger grid to allow for sub-tile centering
+        # For 1024x1024 output (4x4 tiles), fetch 6x6 tiles to have margin
+        tiles_per_side = (size // 256) + 2  # Add 2 for margin
         half_tiles = tiles_per_side // 2
 
         # Calculate tile range
         start_x = center_tile_x - half_tiles
         start_y = center_tile_y - half_tiles
 
-        # Create the stitched image
-        stitched = Image.new('RGBA', (tiles_per_side * 256, tiles_per_side * 256))
+        # Create the stitched image (larger than needed)
+        stitched_size = tiles_per_side * 256
+        stitched = Image.new('RGBA', (stitched_size, stitched_size))
 
         # Fetch and paste each tile
         for dy in range(tiles_per_side):
@@ -192,35 +199,28 @@ class MapTileProvider:
 
         logging.debug(f"Stitched {tiles_per_side}x{tiles_per_side} tiles into {stitched.size} image")
 
-        # Calculate pixel offset to center on exact lat/lon
-        # (since tile coordinates are discrete, we need sub-tile precision)
-        n = 2.0 ** zoom
-        exact_x = (lon + 180.0) / 360.0 * n
-        exact_y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
-
-        # Offset within the stitched image
-        offset_x = (exact_x - start_x) * 256
-        offset_y = (exact_y - start_y) * 256
+        # Calculate exact pixel position in stitched image
+        pixel_x = (exact_x - start_x) * 256
+        pixel_y = (exact_y - start_y) * 256
 
         # Crop to center the image on exact coordinates
-        crop_left = int(offset_x - size / 2)
-        crop_top = int(offset_y - size / 2)
+        crop_left = int(pixel_x - size / 2)
+        crop_top = int(pixel_y - size / 2)
         crop_right = crop_left + size
         crop_bottom = crop_top + size
 
-        # Ensure we don't crop outside the stitched image bounds
+        # Ensure we're within bounds (should always be true with margin)
         if crop_left >= 0 and crop_top >= 0 and crop_right <= stitched.width and crop_bottom <= stitched.height:
             centered = stitched.crop((crop_left, crop_top, crop_right, crop_bottom))
-            logging.debug(f"Cropped to {size}x{size} centered on exact coordinates")
+            logging.debug(f"Cropped to {size}x{size} centered on exact coordinates ({pixel_x:.1f}, {pixel_y:.1f})")
         else:
-            # If cropping would go out of bounds, just center it roughly
-            logging.warning(f"Crop bounds exceeded, using rough centering")
-            centered = stitched.crop((
-                (stitched.width - size) // 2,
-                (stitched.height - size) // 2,
-                (stitched.width + size) // 2,
-                (stitched.height + size) // 2
-            ))
+            # Fallback - shouldn't happen with margin
+            logging.warning(f"Crop bounds exceeded (margin insufficient), using rough centering")
+            crop_left = max(0, crop_left)
+            crop_top = max(0, crop_top)
+            crop_right = min(stitched.width, crop_right)
+            crop_bottom = min(stitched.height, crop_bottom)
+            centered = stitched.crop((crop_left, crop_top, crop_right, crop_bottom))
 
         return centered
 
@@ -847,18 +847,17 @@ class RadarProcessor:
                 else:
                     logging.warning("Could not load house icon, marker will be disabled")
 
-            # Save the legend area for BoM backgrounds (bottom 45px) to re-apply after radar compositing
-            # This ensures the legend always appears on top, even if second radar overlaps it
-            # For OSM backgrounds, we don't have a legend to extract
+            # Save the legend area (bottom 45px) to re-apply after radar compositing
+            # This ensures the legend always appears on top, even if radar data overlaps it
+            legend_height = 45
+            base_width, base_height = base_image.size
             legend_area = None
-            if self.config['background_type'] == 'bom':
-                legend_height = 45
-                base_width, base_height = base_image.size
-                if base_height > legend_height:
-                    legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
-                    logging.debug(f"Saved legend area: {legend_area.size}")
-                else:
-                    logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
+
+            if base_height > legend_height:
+                legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
+                logging.debug(f"Saved legend area: {legend_area.size}")
+            else:
+                logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
 
             # Connect to FTP server for radar data
             logging.info("Connecting to BOM FTP server...")
