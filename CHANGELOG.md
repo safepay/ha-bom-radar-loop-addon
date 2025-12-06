@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2025-12-07
+
+### Fixed
+- **Offline Radar Handling**: Addon now gracefully handles situations where one or more radars are offline
+  - Implements timestamp-based alignment across all radar sources (primary, secondary, tertiary)
+  - Creates frames using available radar data even when primary radar is offline
+  - Generates frames with only available radar overlays when some radars have missing timestamps
+  - Base map background is always shown, even when radar data is missing
+  - System continues to function as long as at least one radar source has data
+
+### Changed
+- Radar images are now downloaded into timestamp-keyed dictionaries for better alignment
+- Frame generation uses unified timeline from all available radars
+- Timestamp file now uses latest timestamp from any available radar (not just primary)
+- Enhanced logging shows offline radar detection and timestamp alignment status
+- Partial data availability is clearly logged with warnings for specific timestamps
+
+### Technical
+- Refactored radar download logic to support timestamp alignment
+- Replaced array-based processing with dictionary-based approach keyed by timestamps
+- Collects unique timestamps from all radars and processes most recent 5
+- Each frame is created by checking which radars have data for that timestamp
+
 ## [1.0.6] - 2025-12-05
 
 ### Added
