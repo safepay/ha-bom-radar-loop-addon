@@ -1202,27 +1202,21 @@ class RadarProcessor:
                 else:
                     overall_status = "offline"
 
-                # Build status data structure
+                # Build status data structure (flattened for easy Home Assistant sensor creation)
                 status_data = {
                     "overall_status": overall_status,
-                    "primary_radar": {
-                        "enabled": True,
-                        "product_id": product_id,
-                        "online": len(primary_radar_images) > 0,
-                        "available_timestamps": len(primary_radar_images)
-                    },
-                    "secondary_radar": {
-                        "enabled": second_radar_enabled,
-                        "product_id": second_radar_product_id if second_radar_enabled else None,
-                        "online": len(second_radar_images) > 0 if second_radar_enabled else None,
-                        "available_timestamps": len(second_radar_images) if second_radar_enabled else 0
-                    },
-                    "tertiary_radar": {
-                        "enabled": third_radar_enabled,
-                        "product_id": third_radar_product_id if third_radar_enabled else None,
-                        "online": len(third_radar_images) > 0 if third_radar_enabled else None,
-                        "available_timestamps": len(third_radar_images) if third_radar_enabled else 0
-                    },
+                    "primary_enabled": True,
+                    "primary_product_id": product_id,
+                    "primary_online": len(primary_radar_images) > 0,
+                    "primary_timestamps": len(primary_radar_images),
+                    "secondary_enabled": second_radar_enabled,
+                    "secondary_product_id": second_radar_product_id if second_radar_enabled else None,
+                    "secondary_online": len(second_radar_images) > 0 if second_radar_enabled else None,
+                    "secondary_timestamps": len(second_radar_images) if second_radar_enabled else 0,
+                    "tertiary_enabled": third_radar_enabled,
+                    "tertiary_product_id": third_radar_product_id if third_radar_enabled else None,
+                    "tertiary_online": len(third_radar_images) > 0 if third_radar_enabled else None,
+                    "tertiary_timestamps": len(third_radar_images) if third_radar_enabled else 0,
                     "latest_timestamp": sorted_timestamps[-1] if sorted_timestamps else None,
                     "frames_generated": len(self.frames),
                     "last_updated": datetime.now(pytz.timezone(self.config['timezone'])).isoformat()
