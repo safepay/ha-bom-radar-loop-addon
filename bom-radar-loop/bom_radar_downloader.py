@@ -887,10 +887,38 @@ class RadarProcessor:
             files = sorted_files[-5:]
 
             logging.info(f"Found {len(all_files)} total radar files for primary radar")
-            logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in files]}")
+            if files:
+                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in files]}")
+            else:
+                logging.warning("Primary radar is offline - no files available")
+
+            # Download radar images into dictionaries keyed by timestamp
+            # This allows us to align timestamps across multiple radars
+            primary_radar_images = {}
+            second_radar_images = {}
+            third_radar_images = {}
+
+            # Download primary radar images
+            for file in files:
+                timestamp = self.get_timestamp(file)
+                logging.debug(f"Processing primary radar {file}")
+                file_obj = io.BytesIO()
+                try:
+                    ftp.retrbinary('RETR ' + file, file_obj.write)
+                    file_obj.seek(0)
+                    image = Image.open(file_obj).convert('RGBA')
+
+                    # Process primary radar image: remove copyright and timestamp
+                    image = self.remove_copyright(image)
+                    image = self.make_timestamp_transparent(image)
+
+                    primary_radar_images[timestamp] = image
+                    logging.debug(f"Successfully processed primary radar {file}")
+                except ftplib.all_errors as e:
+                    logging.error(f"Error downloading primary radar {file}: {e}")
 
             # Download second radar images if enabled
-            second_radar_images = []
+            offset_x, offset_y = 0, 0
             if second_radar_enabled and second_radar_product_id:
                 logging.info(f"Second radar enabled: {second_radar_product_id}")
 
@@ -906,34 +934,36 @@ class RadarProcessor:
                 second_files = sorted_second_files[-5:]
 
                 logging.info(f"Found {len(all_second_files)} total files for second radar")
-                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in second_files]}")
+                if second_files:
+                    logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in second_files]}")
 
-                # Download second radar images
-                for file in second_files:
-                    logging.debug(f"Processing second radar {file}")
-                    file_obj = io.BytesIO()
-                    try:
-                        ftp.retrbinary('RETR ' + file, file_obj.write)
-                        file_obj.seek(0)
-                        image = Image.open(file_obj).convert('RGBA')
+                    # Download second radar images
+                    for file in second_files:
+                        timestamp = self.get_timestamp(file)
+                        logging.debug(f"Processing second radar {file}")
+                        file_obj = io.BytesIO()
+                        try:
+                            ftp.retrbinary('RETR ' + file, file_obj.write)
+                            file_obj.seek(0)
+                            image = Image.open(file_obj).convert('RGBA')
 
-                        # Process second radar image: remove copyright and timestamp
-                        image = self.remove_copyright(image)
-                        image = self.make_timestamp_transparent(image)
+                            # Process second radar image: remove copyright and timestamp
+                            image = self.remove_copyright(image)
+                            image = self.make_timestamp_transparent(image)
 
-                        second_radar_images.append(image)
-                        logging.debug(f"Successfully processed second radar {file}")
-                    except ftplib.all_errors as e:
-                        logging.error(f"Error downloading second radar {file}: {e}")
-                        second_radar_images.append(None)  # Placeholder for failed download
+                            second_radar_images[timestamp] = image
+                            logging.debug(f"Successfully processed second radar {file}")
+                        except ftplib.all_errors as e:
+                            logging.error(f"Error downloading second radar {file}: {e}")
 
-                # Calculate offset for second radar positioning
-                if second_radar_images:
+                    # Calculate offset for second radar positioning
                     offset_x, offset_y = self.calculate_radar_offset(product_id, second_radar_product_id)
                     logging.info(f"Second radar will be offset by ({offset_x}, {offset_y}) pixels")
+                else:
+                    logging.warning("Second radar is offline - no files available")
 
             # Download third radar images if enabled
-            third_radar_images = []
+            third_offset_x, third_offset_y = 0, 0
             if third_radar_enabled and third_radar_product_id:
                 logging.info(f"Third radar enabled: {third_radar_product_id}")
 
@@ -949,116 +979,141 @@ class RadarProcessor:
                 third_files = sorted_third_files[-5:]
 
                 logging.info(f"Found {len(all_third_files)} total files for third radar")
-                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in third_files]}")
+                if third_files:
+                    logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in third_files]}")
 
-                # Download third radar images
-                for file in third_files:
-                    logging.debug(f"Processing third radar {file}")
-                    file_obj = io.BytesIO()
-                    try:
-                        ftp.retrbinary('RETR ' + file, file_obj.write)
-                        file_obj.seek(0)
-                        image = Image.open(file_obj).convert('RGBA')
+                    # Download third radar images
+                    for file in third_files:
+                        timestamp = self.get_timestamp(file)
+                        logging.debug(f"Processing third radar {file}")
+                        file_obj = io.BytesIO()
+                        try:
+                            ftp.retrbinary('RETR ' + file, file_obj.write)
+                            file_obj.seek(0)
+                            image = Image.open(file_obj).convert('RGBA')
 
-                        # Process third radar image: remove copyright and timestamp
-                        image = self.remove_copyright(image)
-                        image = self.make_timestamp_transparent(image)
+                            # Process third radar image: remove copyright and timestamp
+                            image = self.remove_copyright(image)
+                            image = self.make_timestamp_transparent(image)
 
-                        third_radar_images.append(image)
-                        logging.debug(f"Successfully processed third radar {file}")
-                    except ftplib.all_errors as e:
-                        logging.error(f"Error downloading third radar {file}: {e}")
-                        third_radar_images.append(None)  # Placeholder for failed download
+                            third_radar_images[timestamp] = image
+                            logging.debug(f"Successfully processed third radar {file}")
+                        except ftplib.all_errors as e:
+                            logging.error(f"Error downloading third radar {file}: {e}")
 
-                # Calculate offset for third radar positioning
-                if third_radar_images:
+                    # Calculate offset for third radar positioning
                     third_offset_x, third_offset_y = self.calculate_radar_offset(product_id, third_radar_product_id)
                     logging.info(f"Third radar will be offset by ({third_offset_x}, {third_offset_y}) pixels")
+                else:
+                    logging.warning("Third radar is offline - no files available")
 
-            # Download and composite the primary radar images
-            for i, file in enumerate(files):
-                logging.debug(f"Processing primary radar {file}")
-                file_obj = io.BytesIO()
-                try:
-                    ftp.retrbinary('RETR ' + file, file_obj.write)
-                    file_obj.seek(0)
-                    primary_image = Image.open(file_obj).convert('RGBA')
+            # Collect all unique timestamps from all radars
+            all_timestamps = set()
+            all_timestamps.update(primary_radar_images.keys())
+            all_timestamps.update(second_radar_images.keys())
+            all_timestamps.update(third_radar_images.keys())
+
+            # Sort timestamps and take the most recent 5
+            sorted_timestamps = sorted(all_timestamps)[-5:]
+
+            if not sorted_timestamps:
+                logging.error("No radar data available from any radar - all radars offline")
+            else:
+                logging.info(f"Processing {len(sorted_timestamps)} frames with timestamps: {sorted_timestamps}")
+
+                # Log timestamp alignment status for each radar
+                for timestamp in sorted_timestamps:
+                    available_radars = []
+                    if timestamp in primary_radar_images:
+                        available_radars.append("primary")
+                    if timestamp in second_radar_images:
+                        available_radars.append("secondary")
+                    if timestamp in third_radar_images:
+                        available_radars.append("tertiary")
+
+                    if len(available_radars) < (1 + int(second_radar_enabled) + int(third_radar_enabled)):
+                        logging.warning(f"Timestamp {timestamp}: partial data - available from {', '.join(available_radars) if available_radars else 'none'}")
+                    else:
+                        logging.debug(f"Timestamp {timestamp}: complete data from all radars")
+
+                # Create frames for each timestamp
+                for timestamp in sorted_timestamps:
+                    logging.debug(f"Creating frame for timestamp {timestamp}")
 
                     # Start with base image (maintains original size)
                     frame = base_image.copy()
 
-                    # If third radar is enabled, check for overlap and composite if needed
+                    # If third radar is enabled and has data for this timestamp, composite it
                     # Third radar goes first (bottom layer)
-                    if third_radar_enabled and third_radar_images and i < len(third_radar_images):
-                        third_image = third_radar_images[i]
+                    if third_radar_enabled and timestamp in third_radar_images:
+                        third_image = third_radar_images[timestamp]
 
-                        if third_image is not None:
-                            # Check if third radar overlaps with primary radar
-                            # Primary radar: (0, 0) to (512, 512)
-                            # Third radar: (third_offset_x, third_offset_y) to (third_offset_x + 512, third_offset_y + 512)
-                            RADAR_SIZE = 512
+                        # Check if third radar overlaps with primary radar
+                        # Primary radar: (0, 0) to (512, 512)
+                        # Third radar: (third_offset_x, third_offset_y) to (third_offset_x + 512, third_offset_y + 512)
+                        RADAR_SIZE = 512
 
-                            # Rectangles overlap if they intersect
-                            overlaps = (
-                                third_offset_x < RADAR_SIZE and (third_offset_x + RADAR_SIZE) > 0 and
-                                third_offset_y < RADAR_SIZE and (third_offset_y + RADAR_SIZE) > 0
-                            )
+                        # Rectangles overlap if they intersect
+                        overlaps = (
+                            third_offset_x < RADAR_SIZE and (third_offset_x + RADAR_SIZE) > 0 and
+                            third_offset_y < RADAR_SIZE and (third_offset_y + RADAR_SIZE) > 0
+                        )
 
-                            if overlaps:
-                                # Paste third radar first (it should be at the bottom)
-                                # PIL will automatically clip if it extends beyond canvas
-                                frame.paste(third_image, (third_offset_x, third_offset_y), third_image)
-                                logging.debug(f"Pasted third radar at ({third_offset_x}, {third_offset_y}) - overlaps with primary")
-                            else:
-                                logging.warning(f"Third radar at offset ({third_offset_x}, {third_offset_y}) does not overlap with primary radar - skipping")
+                        if overlaps:
+                            # Paste third radar first (it should be at the bottom)
+                            # PIL will automatically clip if it extends beyond canvas
+                            frame.paste(third_image, (third_offset_x, third_offset_y), third_image)
+                            logging.debug(f"Pasted third radar at ({third_offset_x}, {third_offset_y}) for timestamp {timestamp}")
+                        else:
+                            logging.warning(f"Third radar at offset ({third_offset_x}, {third_offset_y}) does not overlap with primary radar - skipping")
 
-                    # If second radar is enabled, check for overlap and composite if needed
+                    # If second radar is enabled and has data for this timestamp, composite it
                     # Second radar goes on top of third radar (middle layer)
-                    if second_radar_enabled and second_radar_images and i < len(second_radar_images):
-                        second_image = second_radar_images[i]
+                    if second_radar_enabled and timestamp in second_radar_images:
+                        second_image = second_radar_images[timestamp]
 
-                        if second_image is not None:
-                            # Check if second radar overlaps with primary radar
-                            # Primary radar: (0, 0) to (512, 512)
-                            # Second radar: (offset_x, offset_y) to (offset_x + 512, offset_y + 512)
-                            RADAR_SIZE = 512
+                        # Check if second radar overlaps with primary radar
+                        # Primary radar: (0, 0) to (512, 512)
+                        # Second radar: (offset_x, offset_y) to (offset_x + 512, offset_y + 512)
+                        RADAR_SIZE = 512
 
-                            # Rectangles overlap if they intersect
-                            overlaps = (
-                                offset_x < RADAR_SIZE and (offset_x + RADAR_SIZE) > 0 and
-                                offset_y < RADAR_SIZE and (offset_y + RADAR_SIZE) > 0
-                            )
+                        # Rectangles overlap if they intersect
+                        overlaps = (
+                            offset_x < RADAR_SIZE and (offset_x + RADAR_SIZE) > 0 and
+                            offset_y < RADAR_SIZE and (offset_y + RADAR_SIZE) > 0
+                        )
 
-                            if overlaps:
-                                # Paste second radar (it should be below primary but above third)
-                                # PIL will automatically clip if it extends beyond canvas
-                                frame.paste(second_image, (offset_x, offset_y), second_image)
-                                logging.debug(f"Pasted second radar at ({offset_x}, {offset_y}) - overlaps with primary")
-                            else:
-                                logging.warning(f"Second radar at offset ({offset_x}, {offset_y}) does not overlap with primary radar - skipping")
+                        if overlaps:
+                            # Paste second radar (it should be below primary but above third)
+                            # PIL will automatically clip if it extends beyond canvas
+                            frame.paste(second_image, (offset_x, offset_y), second_image)
+                            logging.debug(f"Pasted second radar at ({offset_x}, {offset_y}) for timestamp {timestamp}")
+                        else:
+                            logging.warning(f"Second radar at offset ({offset_x}, {offset_y}) does not overlap with primary radar - skipping")
 
-                    # Paste primary radar on top (always at 0, 0)
-                    frame.paste(primary_image, (0, 0), primary_image)
+                    # If primary radar has data for this timestamp, paste it on top (always at 0, 0)
+                    if timestamp in primary_radar_images:
+                        primary_image = primary_radar_images[timestamp]
+                        frame.paste(primary_image, (0, 0), primary_image)
+                        logging.debug(f"Pasted primary radar for timestamp {timestamp}")
 
                     # Re-paste legend area on top to ensure it's always visible
-                    # This prevents second radar from obscuring the legend
+                    # This prevents second/third radar from obscuring the legend
                     if legend_area is not None:
                         legend_y = base_height - legend_height
                         frame.paste(legend_area, (0, legend_y), legend_area)
                         logging.debug(f"Re-pasted legend area at bottom")
 
                     self.frames.append(frame)
-                    logging.debug(f"Successfully processed {file}")
-                except ftplib.all_errors as e:
-                    logging.error(f"Error downloading {file}: {e}")
+                    logging.debug(f"Successfully created frame for timestamp {timestamp}")
 
             ftp.quit()
             logging.info("Disconnected from FTP server")
-            
+
             if not self.frames:
                 logging.error("No frames were processed")
                 return False
-            
+
             # Save individual PNG images (without house marker)
             for i, img in enumerate(self.frames):
                 filename = f"image_{i+1}.png"
@@ -1103,9 +1158,23 @@ class RadarProcessor:
             )
             self.saved_filenames.append(self.config['animated_gif_filename'])
             logging.info(f"Saved animated GIF: {gif_filepath} ({num_frames} frames, last frame pauses for {self.config['gif_last_frame_duration']}ms)")
-            
-            # Extract timestamp from last radar file
-            timestamp_content = self.parse_timestamp(files[-1]) if files else None
+
+            # Extract timestamp from latest radar data
+            # Use the most recent timestamp from any available radar
+            timestamp_content = None
+            if sorted_timestamps:
+                # Create a dummy filename with the latest timestamp for parsing
+                latest_timestamp = sorted_timestamps[-1]
+                # Determine which radar has this timestamp to get the correct product ID
+                if latest_timestamp in primary_radar_images:
+                    dummy_filename = f"{product_id}.T.{latest_timestamp}.png"
+                elif latest_timestamp in second_radar_images:
+                    dummy_filename = f"{second_radar_product_id}.T.{latest_timestamp}.png"
+                elif latest_timestamp in third_radar_images:
+                    dummy_filename = f"{third_radar_product_id}.T.{latest_timestamp}.png"
+
+                timestamp_content = self.parse_timestamp(dummy_filename)
+                logging.info(f"Using latest timestamp from available radar data: {latest_timestamp}")
 
             # Write timestamp file locally
             if timestamp_content:
