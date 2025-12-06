@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.8] - 2025-12-07
+
+### Added
+- **Radar Status File**: Automatically generates `radar_status.json` with detailed radar availability information
+  - Overall status indicator: "online", "partial", or "offline"
+  - Per-radar status: enabled state, product ID, online status, available timestamps
+  - Latest timestamp and frame generation count
+  - ISO 8601 timestamp of when status was generated
+  - Perfect for creating Home Assistant sensors and automations to monitor radar health
+  - Documented in DOCS.md with example JSON structure and use cases
+
+### Changed
+- Updated documentation (README.md and DOCS.md) to include radar status file information
+- Status file provides real-time visibility into radar availability for all configured radars
+
 ## [1.0.7] - 2025-12-07
 
 ### Fixed

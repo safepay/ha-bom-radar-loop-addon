@@ -16,7 +16,7 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.6'
+VERSION = '1.0.8'
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
@@ -30,7 +30,7 @@ class MapTileProvider:
     OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
     # User-Agent required by OSM tile usage policy
-    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.6 (https://github.com/safepay/ha-bom-radar-loop-addon)"
+    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.8 (https://github.com/safepay/ha-bom-radar-loop-addon)"
 
     # Cache expiry: 30 days (map tiles rarely change)
     CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
@@ -1188,6 +1188,56 @@ class RadarProcessor:
                     logging.info(f"Wrote timestamp file: {timestamp_filepath}")
                 except Exception as e:
                     logging.error(f"Failed to write timestamp file: {e}")
+
+            # Generate and write radar status file
+            try:
+                # Determine overall status
+                radars_enabled = 1 + int(second_radar_enabled) + int(third_radar_enabled)
+                radars_online = int(len(primary_radar_images) > 0) + int(len(second_radar_images) > 0) + int(len(third_radar_images) > 0)
+
+                if radars_online == radars_enabled and radars_online > 0:
+                    overall_status = "online"
+                elif radars_online > 0:
+                    overall_status = "partial"
+                else:
+                    overall_status = "offline"
+
+                # Build status data structure
+                status_data = {
+                    "overall_status": overall_status,
+                    "primary_radar": {
+                        "enabled": True,
+                        "product_id": product_id,
+                        "online": len(primary_radar_images) > 0,
+                        "available_timestamps": len(primary_radar_images)
+                    },
+                    "secondary_radar": {
+                        "enabled": second_radar_enabled,
+                        "product_id": second_radar_product_id if second_radar_enabled else None,
+                        "online": len(second_radar_images) > 0 if second_radar_enabled else None,
+                        "available_timestamps": len(second_radar_images) if second_radar_enabled else 0
+                    },
+                    "tertiary_radar": {
+                        "enabled": third_radar_enabled,
+                        "product_id": third_radar_product_id if third_radar_enabled else None,
+                        "online": len(third_radar_images) > 0 if third_radar_enabled else None,
+                        "available_timestamps": len(third_radar_images) if third_radar_enabled else 0
+                    },
+                    "latest_timestamp": sorted_timestamps[-1] if sorted_timestamps else None,
+                    "frames_generated": len(self.frames),
+                    "last_updated": datetime.now(pytz.timezone(self.config['timezone'])).isoformat()
+                }
+
+                # Write status JSON file
+                status_filepath = os.path.join(
+                    self.config['output_directory'],
+                    'radar_status.json'
+                )
+                with open(status_filepath, 'w') as f:
+                    json.dump(status_data, f, indent=2)
+                logging.info(f"Wrote status file: {status_filepath} (overall_status: {overall_status})")
+            except Exception as e:
+                logging.error(f"Failed to write status file: {e}")
 
             # Transfer to SMB share (only in non-addon mode)
             if not self.config.get('addon_mode', False):
