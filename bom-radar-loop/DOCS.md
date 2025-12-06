@@ -193,24 +193,18 @@ The addon automatically generates a `radar_status.json` file containing detailed
 ```json
 {
   "overall_status": "partial",
-  "primary_radar": {
-    "enabled": true,
-    "product_id": "IDR952",
-    "online": false,
-    "available_timestamps": 0
-  },
-  "secondary_radar": {
-    "enabled": true,
-    "product_id": "IDR022",
-    "online": true,
-    "available_timestamps": 5
-  },
-  "tertiary_radar": {
-    "enabled": true,
-    "product_id": "IDR142",
-    "online": true,
-    "available_timestamps": 5
-  },
+  "primary_enabled": true,
+  "primary_product_id": "IDR952",
+  "primary_online": false,
+  "primary_timestamps": 0,
+  "secondary_enabled": true,
+  "secondary_product_id": "IDR022",
+  "secondary_online": true,
+  "secondary_timestamps": 5,
+  "tertiary_enabled": true,
+  "tertiary_product_id": "IDR142",
+  "tertiary_online": true,
+  "tertiary_timestamps": 5,
   "latest_timestamp": "202512062034",
   "frames_generated": 5,
   "last_updated": "2025-12-07T12:34:56+11:00"
@@ -219,11 +213,29 @@ The addon automatically generates a `radar_status.json` file containing detailed
 
 **Status values:**
 - `overall_status`: Can be `"online"` (all enabled radars working), `"partial"` (some radars offline), or `"offline"` (no data available)
-- `online`: Boolean indicating if the radar has current data available (null if radar not enabled)
-- `available_timestamps`: Number of radar frames downloaded (typically 5 when online)
+- `primary_enabled`, `secondary_enabled`, `tertiary_enabled`: Boolean indicating if radar is configured
+- `primary_product_id`, `secondary_product_id`, `tertiary_product_id`: BoM radar product ID (null if not enabled)
+- `primary_online`, `secondary_online`, `tertiary_online`: Boolean indicating if radar has current data (null if not enabled)
+- `primary_timestamps`, `secondary_timestamps`, `tertiary_timestamps`: Number of radar frames downloaded (typically 5 when online, 0 if not enabled)
 - `latest_timestamp`: Most recent timestamp in YYYYMMDDHHmm format
 - `frames_generated`: Number of animation frames created
 - `last_updated`: ISO 8601 timestamp of when the status was generated
+
+**Home Assistant sensor example:**
+```yaml
+sensor:
+  - platform: rest
+    resource: http://homeassistant.local:8123/local/bom_radar/radar_status.json
+    name: "Radar Overall Status"
+    value_template: "{{ value_json.overall_status }}"
+    scan_interval: 600
+
+  - platform: rest
+    resource: http://homeassistant.local:8123/local/bom_radar/radar_status.json
+    name: "Primary Radar Status"
+    value_template: "{% if value_json.primary_online %}Online{% else %}Offline{% endif %}"
+    scan_interval: 600
+```
 
 **Use cases:**
 - Create Home Assistant sensors to monitor radar availability
