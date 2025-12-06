@@ -3,7 +3,7 @@ version: '3.8'
 services:
   radar-downloader:
     build:
-      context: .
+      context: ./bom-radar-loop
       dockerfile: Dockerfile
     image: bom-radar-downloader:latest
     container_name: bom-radar-downloader
