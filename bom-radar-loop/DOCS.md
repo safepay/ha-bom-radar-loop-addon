@@ -185,6 +185,52 @@ The addon creates a `radar_last_update.txt` file containing:
 
 This can be useful for AI prompts or automation.
 
+### Radar Status File
+
+The addon automatically generates a `radar_status.json` file containing detailed status information about all configured radars. This is especially useful for monitoring radar availability and creating automations.
+
+**Example status file:**
+```json
+{
+  "overall_status": "partial",
+  "primary_radar": {
+    "enabled": true,
+    "product_id": "IDR952",
+    "online": false,
+    "available_timestamps": 0
+  },
+  "secondary_radar": {
+    "enabled": true,
+    "product_id": "IDR022",
+    "online": true,
+    "available_timestamps": 5
+  },
+  "tertiary_radar": {
+    "enabled": true,
+    "product_id": "IDR142",
+    "online": true,
+    "available_timestamps": 5
+  },
+  "latest_timestamp": "202512062034",
+  "frames_generated": 5,
+  "last_updated": "2025-12-07T12:34:56+11:00"
+}
+```
+
+**Status values:**
+- `overall_status`: Can be `"online"` (all enabled radars working), `"partial"` (some radars offline), or `"offline"` (no data available)
+- `online`: Boolean indicating if the radar has current data available (null if radar not enabled)
+- `available_timestamps`: Number of radar frames downloaded (typically 5 when online)
+- `latest_timestamp`: Most recent timestamp in YYYYMMDDHHmm format
+- `frames_generated`: Number of animation frames created
+- `last_updated`: ISO 8601 timestamp of when the status was generated
+
+**Use cases:**
+- Create Home Assistant sensors to monitor radar availability
+- Set up notifications when radars go offline
+- Display radar status on your dashboard
+- Automate actions based on radar health
+
 ## Finding Your Radar Product ID
 
 **See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** for a comprehensive list of all Australian radar locations organized by state.

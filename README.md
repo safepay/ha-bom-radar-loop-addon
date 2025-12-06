@@ -136,8 +136,11 @@ Located in `/config/www/bom_radar/`:
 - `radar_animated.gif` - Animated loop (5 frames) for dashboards
 - `image_1.png` to `image_5.png` - Individual frames for LLM Vision analysis
 - `radar_last_update.txt` - Timestamp information
+- `radar_status.json` - Detailed radar status and availability (new in v1.0.8)
 
 Access via `/local/bom_radar/filename` in dashboards and automations.
+
+The status file includes real-time information about radar availability, offline detection, and frame generation - perfect for monitoring and automation. See [DOCS.md](bom-radar-loop/DOCS.md#radar-status-file) for details.
 
 ## Documentation
 
