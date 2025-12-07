@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.9] - 2025-12-07
+
+### Added
+- **Frame Indicator Bar**: Animated GIFs now show a subtle progress bar at the top to indicate frame transitions
+  - 2-pixel tall white progress bar fills from left to right as animation plays
+  - Semi-transparent design (RGBA: 255, 255, 255, 180) for visibility without distraction
+  - Helps users see which frame is currently displayed when radar conditions are similar
+  - Provides clear visual feedback that the animation is progressing
+
+### Technical
+- Added `add_frame_indicator()` method to draw progress bar on each frame
+- Imported ImageDraw from PIL for drawing operations
+- Progress bar is applied after all radar layers and legend are composited
+- Bar width is calculated proportionally based on frame position in sequence
+
 ## [1.0.8] - 2025-12-07
 
 ### Added
