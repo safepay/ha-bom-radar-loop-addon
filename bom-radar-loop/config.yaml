@@ -2,9 +2,10 @@
 radar:
   product_id: IDR952  # Change this to your BoM Product ID
   timezone: Australia/Melbourne # Change this to your timezone
-  background_type: bom  # Options: bom (default) or openstreetmap
+  background_type: bom  # Options: bom (default), openstreetmap, or openfreemap
   # - bom: Uses official BoM radar background with configured layers
   # - openstreetmap: Uses OpenStreetMap for higher resolution, clearer backgrounds
+  # - openfreemap: Uses OpenFreeMap Positron style - clean, minimal design optimized for radar overlays
   #   (Note: BoM layer options only work with 'bom' background)
 
 # Residential Location Marker (Optional)
