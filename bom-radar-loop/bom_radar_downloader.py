@@ -9,7 +9,7 @@ import logging
 import time
 import urllib.request
 import urllib.error
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 from pathlib import Path
 import pytz
@@ -390,6 +390,7 @@ class RadarProcessor:
     def __init__(self, config):
         self.config = config
         self.frames = []
+        self.timestamps = []
         self.saved_filenames = []
 
         # Create output directory if it doesn't exist
@@ -759,39 +760,60 @@ class RadarProcessor:
         logging.debug(f"Added legend bar at bottom: final size {extended.size}")
         return extended
 
-    def add_frame_indicator(self, image, frame_index, total_frames):
-        """Add a subtle progress bar just above the legend to indicate animation progress
+    def add_timestamp_overlay(self, image, timestamp_str):
+        """Add timestamp overlay in top-left corner
 
         Args:
             image: PIL Image object in RGBA mode (512x520 with legend)
-            frame_index: Current frame number (0-indexed)
-            total_frames: Total number of frames in the animation
+            timestamp_str: Timestamp string in YYYYMMDDHHmm format
 
         Returns:
-            PIL Image with frame indicator bar drawn above legend
+            PIL Image with timestamp overlay in top-left corner
         """
         img = image.copy()
         draw = ImageDraw.Draw(img)
 
-        # Bar dimensions
-        bar_height = 3  # 3 pixels tall, subtle
-        # Position just above the legend (legend is 8px at bottom, place bar 2px above it)
-        bar_y = img.height - 10  # 10 pixels from bottom = 2px gap + 8px legend
+        try:
+            # Parse timestamp (UTC) and convert to local timezone
+            dt_utc = datetime.strptime(timestamp_str, "%Y%m%d%H%M")
+            dt_utc = pytz.utc.localize(dt_utc)
+            local_tz = pytz.timezone(self.config['timezone'])
+            dt_local = dt_utc.astimezone(local_tz)
 
-        # Calculate progress
-        if total_frames > 1:
-            progress_width = int((frame_index / (total_frames - 1)) * img.width)
-        else:
-            progress_width = img.width
+            # Format time as "h:mm am/pm" (no leading zero for hour)
+            hour = dt_local.hour % 12
+            if hour == 0:
+                hour = 12
+            am_pm = "am" if dt_local.hour < 12 else "pm"
+            time_str = f"{hour}:{dt_local.minute:02d} {am_pm}"
 
-        # Draw the progress portion (medium grey on white background, subtle)
-        if progress_width > 0:
-            draw.rectangle(
-                [(0, bar_y), (progress_width, bar_y + bar_height - 1)],
-                fill=(128, 128, 128, 255)  # Medium grey, fully opaque
-            )
+            # Try to use a nice font, fall back to default if not available
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+            except:
+                try:
+                    font = ImageFont.truetype("arial.ttf", 20)
+                except:
+                    font = ImageFont.load_default()
 
-        logging.debug(f"Added frame indicator: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
+            # Position in top-left with some padding
+            x = 10
+            y = 10
+
+            # Draw text with black outline for visibility
+            outline_width = 2
+            for adj_x in range(-outline_width, outline_width + 1):
+                for adj_y in range(-outline_width, outline_width + 1):
+                    draw.text((x + adj_x, y + adj_y), time_str, font=font, fill=(0, 0, 0, 255))
+
+            # Draw white text on top
+            draw.text((x, y), time_str, font=font, fill=(255, 255, 255, 255))
+
+            logging.debug(f"Added timestamp overlay: {time_str}")
+
+        except Exception as e:
+            logging.error(f"Error adding timestamp overlay: {e}")
+
         return img
 
     def calculate_radar_offset(self, primary_product_id, secondary_product_id):
@@ -880,6 +902,7 @@ class RadarProcessor:
     def process_images(self):
         """Main processing function"""
         self.frames = []
+        self.timestamps = []
         self.saved_filenames = []
 
         product_id = self.config['product_id']
@@ -1139,6 +1162,7 @@ class RadarProcessor:
                     frame = self.add_legend_bar(frame)
 
                     self.frames.append(frame)
+                    self.timestamps.append(timestamp)
                     logging.debug(f"Successfully created frame for timestamp {timestamp}")
 
             ftp.quit()
@@ -1158,22 +1182,21 @@ class RadarProcessor:
 
             logging.info(f"Saved {len(self.saved_filenames)} PNG images")
 
-            # Create GIF frames with progress indicator and house marker (if enabled)
+            # Create GIF frames with timestamp overlay and house marker (if enabled)
             gif_frames = []
-            total_frames = len(self.frames)
 
             if house_icon is not None:
-                logging.info("Adding progress indicators and house markers to GIF frames only")
-                for frame_index, frame in enumerate(self.frames):
+                logging.info("Adding timestamps and house markers to GIF frames only")
+                for frame, timestamp in zip(self.frames, self.timestamps):
                     gif_frame = frame.copy()
-                    gif_frame = self.add_frame_indicator(gif_frame, frame_index, total_frames)
+                    gif_frame = self.add_timestamp_overlay(gif_frame, timestamp)
                     gif_frame = self.add_house_marker(gif_frame, house_icon)
                     gif_frames.append(gif_frame)
             else:
-                logging.info("Adding progress indicators to GIF frames only")
-                for frame_index, frame in enumerate(self.frames):
+                logging.info("Adding timestamps to GIF frames only")
+                for frame, timestamp in zip(self.frames, self.timestamps):
                     gif_frame = frame.copy()
-                    gif_frame = self.add_frame_indicator(gif_frame, frame_index, total_frames)
+                    gif_frame = self.add_timestamp_overlay(gif_frame, timestamp)
                     gif_frames.append(gif_frame)
 
             # Save animated GIF
