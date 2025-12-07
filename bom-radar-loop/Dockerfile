@@ -1,7 +1,7 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Install Python, Node.js, and dependencies (including TileServer GL build tools)
+# Install Python, Node.js, and dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
