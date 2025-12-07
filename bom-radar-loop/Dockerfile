@@ -8,7 +8,24 @@ RUN apk add --no-cache \
     bash \
     nodejs \
     npm \
-    wget
+    wget \
+    # Build tools for TileServer GL
+    build-base \
+    g++ \
+    make \
+    pkgconf \
+    # Graphics libraries for TileServer GL canvas rendering
+    cairo-dev \
+    pango-dev \
+    pixman-dev \
+    libjpeg-turbo-dev \
+    giflib-dev \
+    librsvg-dev \
+    # Runtime libraries
+    cairo \
+    pango \
+    pixman \
+    giflib
 
 WORKDIR /app
 
