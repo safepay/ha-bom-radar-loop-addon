@@ -2,20 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.9] - 2025-12-07
+## [1.0.10] - 2025-12-07
 
 ### Added
-- **Frame Indicator Bar**: Animated GIFs now show a subtle progress bar at the top to indicate frame transitions
-  - 2-pixel tall white progress bar fills from left to right as animation plays
-  - Semi-transparent design (RGBA: 255, 255, 255, 180) for visibility without distraction
-  - Helps users see which frame is currently displayed when radar conditions are similar
-  - Provides clear visual feedback that the animation is progressing
+- **Compact Legend Bar**: Replaced large 512x557 legend with compact 492x8 color scale bar
+  - New radar-colour-bar.png provides cleaner, more space-efficient legend
+  - Legend centered at bottom with white background
+  - All images (PNG and GIF) now include the compact legend
+  - Final image size: 512x520 (down from 512x557)
+
+- **Frame Progress Indicator**: Animated GIFs show subtle progress bar to indicate frame transitions
+  - 3-pixel tall grey progress bar positioned above legend
+  - Fills from left to right as animation progresses
+  - Applied only to GIF frames (PNG frames remain clean)
+  - Helps users see which frame is displayed when radar conditions are similar
+
+### Changed
+- Refactored image composition pipeline for new legend system
+  - Base images now created at 512x512 (no longer use legend as starting base)
+  - New `add_legend_bar()` method extends frames to 512x520 with legend
+  - Removed old legend extraction and re-pasting logic
+  - Simplified both BoM and OpenStreetMap background creation
 
 ### Technical
-- Added `add_frame_indicator()` method to draw progress bar on each frame
+- Added `add_frame_indicator()` method to draw progress bar on GIF frames
+- Added `add_legend_bar()` method to append compact legend to all frames
 - Imported ImageDraw from PIL for drawing operations
-- Progress bar is applied after all radar layers and legend are composited
-- Bar width is calculated proportionally based on frame position in sequence
+- Updated default legend_file path to /app/radar-colour-bar.png
+- Progress bar uses medium grey (128,128,128) on white background for subtlety
 
 ## [1.0.8] - 2025-12-07
 
