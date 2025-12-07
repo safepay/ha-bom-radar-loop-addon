@@ -9,7 +9,7 @@ import logging
 import time
 import urllib.request
 import urllib.error
-from PIL import Image
+from PIL import Image, ImageDraw
 from datetime import datetime
 from pathlib import Path
 import pytz
@@ -744,6 +744,42 @@ class RadarProcessor:
         logging.debug(f"Made timestamp text (RGB 0,0,0) transparent in bottom {timestamp_region_height}px of image {img.size}")
         return img
 
+    def add_frame_indicator(self, image, frame_index, total_frames):
+        """Add a subtle progress bar at the top of the image to indicate animation progress
+
+        Args:
+            image: PIL Image object in RGBA mode
+            frame_index: Current frame number (0-indexed)
+            total_frames: Total number of frames in the animation
+
+        Returns:
+            PIL Image with frame indicator bar added at the top
+        """
+        img = image.copy()
+        draw = ImageDraw.Draw(img)
+
+        # Bar dimensions
+        bar_height = 2  # Very subtle, just 2 pixels tall
+        bar_y = 0  # At the very top
+
+        # Calculate progress
+        if total_frames > 1:
+            progress_width = int((frame_index / (total_frames - 1)) * img.width)
+        else:
+            progress_width = img.width
+
+        # Draw the progress bar
+        # Using a semi-transparent white color (RGBA: 255, 255, 255, 180)
+        # This will be visible on the dark radar background
+        if progress_width > 0:
+            draw.rectangle(
+                [(0, bar_y), (progress_width, bar_y + bar_height - 1)],
+                fill=(255, 255, 255, 180)
+            )
+
+        logging.debug(f"Added frame indicator: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
+        return img
+
     def calculate_radar_offset(self, primary_product_id, secondary_product_id):
         """Calculate pixel offset between two radars based on their geographic positions
 
@@ -1037,7 +1073,8 @@ class RadarProcessor:
                         logging.debug(f"Timestamp {timestamp}: complete data from all radars")
 
                 # Create frames for each timestamp
-                for timestamp in sorted_timestamps:
+                total_frames = len(sorted_timestamps)
+                for frame_index, timestamp in enumerate(sorted_timestamps):
                     logging.debug(f"Creating frame for timestamp {timestamp}")
 
                     # Start with base image (maintains original size)
@@ -1103,6 +1140,9 @@ class RadarProcessor:
                         legend_y = base_height - legend_height
                         frame.paste(legend_area, (0, legend_y), legend_area)
                         logging.debug(f"Re-pasted legend area at bottom")
+
+                    # Add subtle frame indicator bar at top to show animation progress
+                    frame = self.add_frame_indicator(frame, frame_index, total_frames)
 
                     self.frames.append(frame)
                     logging.debug(f"Successfully created frame for timestamp {timestamp}")
