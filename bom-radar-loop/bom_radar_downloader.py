@@ -16,7 +16,7 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.9'
+VERSION = '1.0.8'
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
@@ -24,24 +24,25 @@ CONFIG_FILE = Path('/config/config.yaml')
 
 
 class MapTileProvider:
-    """Handles fetching and caching of map tiles (OpenStreetMap or OpenFreeMap)"""
+    """Handles fetching and caching of OpenStreetMap tiles"""
 
-    # User-Agent required by tile usage policies
-    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.9 (https://github.com/safepay/ha-bom-radar-loop-addon)"
+    # OpenStreetMap tile server URL
+    OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+    # User-Agent required by OSM tile usage policy
+    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.8 (https://github.com/safepay/ha-bom-radar-loop-addon)"
 
     # Cache expiry: 30 days (map tiles rarely change)
     CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
 
-    def __init__(self, cache_dir, tile_url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"):
+    def __init__(self, cache_dir):
         """
         Initialize the map tile provider
 
         Args:
             cache_dir: Directory path for persistent tile cache
-            tile_url: URL template for tile server (default: OpenStreetMap)
         """
         self.cache_dir = Path(cache_dir)
-        self.tile_url = tile_url
         self.memory_cache = {}  # Session cache for faster access
 
         # Create cache directory if it doesn't exist
@@ -120,7 +121,7 @@ class MapTileProvider:
                 logging.debug(f"Tile {cache_key} cache expired, re-downloading")
 
         # Download tile
-        url = self.tile_url.format(z=z, x=x, y=y)
+        url = self.OSM_TILE_URL.format(z=z, x=x, y=y)
         logging.info(f"Downloading tile: {cache_key}")
 
         try:
@@ -160,7 +161,7 @@ class MapTileProvider:
         Returns:
             PIL Image object (size x size pixels)
         """
-        logging.info(f"Creating map background: lat={lat}, lon={lon}, zoom={zoom}, size={size}x{size}")
+        logging.info(f"Creating OSM background: lat={lat}, lon={lon}, zoom={zoom}, size={size}x{size}")
 
         # Calculate exact tile coordinates (with fractional part for sub-tile precision)
         n = 2.0 ** zoom
@@ -394,19 +395,9 @@ class RadarProcessor:
         # Create output directory if it doesn't exist
         os.makedirs(self.config['output_directory'], exist_ok=True)
 
-        # Initialize map tile provider for OSM or OpenFreeMap backgrounds
+        # Initialize map tile provider for OSM backgrounds
         tile_cache_dir = os.path.join(self.config['output_directory'], 'tile_cache')
-        background_type = self.config.get('background_type', 'bom')
-
-        if background_type == 'openfreemap':
-            # Use TileServer GL for OpenFreeMap (Positron style)
-            tile_url = "http://localhost:8080/styles/positron/{z}/{x}/{y}.png"
-            self.tile_provider = MapTileProvider(tile_cache_dir, tile_url)
-            logging.info("Initialized tile provider for OpenFreeMap backgrounds")
-        else:
-            # Use OpenStreetMap tiles (default)
-            self.tile_provider = MapTileProvider(tile_cache_dir)
-            logging.info("Initialized tile provider for OpenStreetMap backgrounds")
+        self.tile_provider = MapTileProvider(tile_cache_dir)
     
     def load_legend(self):
         """Load the legend image"""
@@ -456,7 +447,7 @@ class RadarProcessor:
 
     def get_optimal_zoom(self, product_id):
         """
-        Calculate optimal zoom level for map tiles based on radar range
+        Calculate optimal zoom level for OSM tiles based on radar range
 
         Args:
             product_id: BOM product ID (e.g., 'IDR632' for 256km)
@@ -487,19 +478,18 @@ class RadarProcessor:
 
     def create_base_image(self, product_id):
         """
-        Create base image with selected background type (BoM, OSM, or OpenFreeMap)
+        Create base image with selected background type (BoM or OSM)
 
         Args:
             product_id: BOM product ID
 
         Returns:
-            PIL Image object (512x557 RGBA - includes legend)
+            PIL Image object (512x512 RGBA)
         """
         background_type = self.config['background_type']
 
-        if background_type in ['openstreetmap', 'openfreemap']:
-            map_type = "OpenFreeMap" if background_type == 'openfreemap' else "OpenStreetMap"
-            logging.info(f"Creating {map_type} background for {product_id}")
+        if background_type == 'openstreetmap':
+            logging.info(f"Creating OpenStreetMap background for {product_id}")
 
             # Get radar coordinates from metadata
             if product_id not in RADAR_METADATA:
@@ -512,40 +502,40 @@ class RadarProcessor:
             # Calculate optimal zoom level
             zoom = self.get_optimal_zoom(product_id)
 
-            # Create high-resolution map background (1024x1024)
+            # Create high-resolution OSM background (1024x1024)
             try:
-                map_background = self.tile_provider.create_background(
+                osm_background = self.tile_provider.create_background(
                     lat, lon, zoom, size=1024
                 )
 
                 # Downsample to 512x512 with high-quality antialiasing
-                map_resized = map_background.resize(
+                osm_resized = osm_background.resize(
                     (512, 512),
                     Image.Resampling.LANCZOS
                 )
-                logging.info(f"Created {map_type} background: {map_resized.size}")
+                logging.info(f"Created OSM background: {osm_resized.size}")
 
                 # Load legend as base (just like BoM backgrounds do)
                 # The legend PNG is 512xH where H = 512 (map area) + 45 (legend) = 557 total
                 base_image = self.load_legend()
                 if base_image is None:
-                    logging.error(f"Failed to load legend, using {map_type} background without legend")
-                    return map_resized
+                    logging.error("Failed to load legend, using OSM background without legend")
+                    return osm_resized
 
                 # Get actual legend dimensions
                 legend_width, legend_height = base_image.size
                 logging.debug(f"Legend image size: {legend_width}x{legend_height}")
 
-                # Paste map background (512x512) onto the top 512 pixels of legend base (512x557)
-                # Use the map image's alpha channel as mask to preserve transparency
-                # Since map is 512 tall, it only affects the top 512 pixels, leaving the 45px legend bar intact
-                base_image.paste(map_resized, (0, 0), map_resized)
-                logging.debug(f"Composited {map_type} background onto legend base, legend bar at bottom preserved")
+                # Paste OSM background (512x512) onto the top 512 pixels of legend base (512x557)
+                # Use the OSM image's alpha channel as mask to preserve transparency
+                # Since OSM is 512 tall, it only affects the top 512 pixels, leaving the 45px legend bar intact
+                base_image.paste(osm_resized, (0, 0), osm_resized)
+                logging.debug(f"Composited OSM background onto legend base, legend bar at bottom preserved")
 
                 return base_image
 
             except Exception as e:
-                logging.error(f"Failed to create {map_type} background: {e}")
+                logging.error(f"Failed to create OSM background: {e}")
                 logging.info("Falling back to BoM background")
                 return self.create_bom_base_image(product_id)
 
