@@ -745,7 +745,7 @@ class RadarProcessor:
         return img
 
     def add_frame_indicator(self, image, frame_index, total_frames):
-        """Add a subtle progress bar at the top of the image to indicate animation progress
+        """Add a progress bar at the top of the image to indicate animation progress
 
         Args:
             image: PIL Image object in RGBA mode
@@ -759,7 +759,7 @@ class RadarProcessor:
         draw = ImageDraw.Draw(img)
 
         # Bar dimensions
-        bar_height = 2  # Very subtle, just 2 pixels tall
+        bar_height = 4  # 4 pixels tall for better visibility
         bar_y = 0  # At the very top
 
         # Calculate progress
@@ -768,13 +768,17 @@ class RadarProcessor:
         else:
             progress_width = img.width
 
-        # Draw the progress bar
-        # Using a semi-transparent white color (RGBA: 255, 255, 255, 180)
-        # This will be visible on the dark radar background
+        # Draw background bar (light gray, semi-transparent)
+        draw.rectangle(
+            [(0, bar_y), (img.width - 1, bar_y + bar_height - 1)],
+            fill=(200, 200, 200, 120)
+        )
+
+        # Draw the progress portion (bright cyan, fully opaque)
         if progress_width > 0:
             draw.rectangle(
                 [(0, bar_y), (progress_width, bar_y + bar_height - 1)],
-                fill=(255, 255, 255, 180)
+                fill=(0, 255, 255, 255)
             )
 
         logging.debug(f"Added frame indicator: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
