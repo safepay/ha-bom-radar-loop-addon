@@ -742,6 +742,9 @@ class RadarProcessor:
         legend_width, legend_height = legend.size  # Should be 492x8
         img_width, img_height = image.size  # Should be 512x512
 
+        # Stretch legend to match image width
+        legend_stretched = legend.resize((img_width, legend_height), Image.Resampling.LANCZOS)
+
         # Create new image with extra height for legend
         new_height = img_height + legend_height
         extended = Image.new('RGBA', (img_width, new_height), (255, 255, 255, 255))
@@ -749,10 +752,9 @@ class RadarProcessor:
         # Paste original image at top
         extended.paste(image, (0, 0), image)
 
-        # Center and paste legend at bottom
-        legend_x = (img_width - legend_width) // 2  # Center horizontally
+        # Paste stretched legend at bottom (full width)
         legend_y = img_height  # At the bottom
-        extended.paste(legend, (legend_x, legend_y), legend)
+        extended.paste(legend_stretched, (0, legend_y), legend_stretched)
 
         logging.debug(f"Added legend bar at bottom: final size {extended.size}")
         return extended
