@@ -278,7 +278,7 @@ class Config:
                 'output_directory': output_directory,
                 'animated_gif_filename': 'radar_animated.gif',
                 'timestamp_filename': 'radar_last_update.txt',
-                'legend_file': '/app/IDR.legend.0.png',
+                'legend_file': '/app/radar-colour-bar.png',
 
                 # GIF settings
                 'gif_duration': int(options.get('gif_duration', 500)),
@@ -351,7 +351,7 @@ class Config:
                 'output_directory': os.getenv('OUTPUT_DIR', output.get('directory', '/images')),
                 'animated_gif_filename': os.getenv('ANIMATED_GIF', output.get('animated_gif', 'radar_animated.gif')),
                 'timestamp_filename': os.getenv('TIMESTAMP_FILE', output.get('timestamp_file', 'radar_last_update.txt')),
-                'legend_file': os.getenv('LEGEND_FILE', output.get('legend_file', '/app/IDR.legend.0.png')),
+                'legend_file': os.getenv('LEGEND_FILE', output.get('legend_file', '/app/radar-colour-bar.png')),
 
                 # GIF settings
                 'gif_duration': int(os.getenv('GIF_DURATION', gif.get('duration', 500))),
@@ -515,24 +515,7 @@ class RadarProcessor:
                 )
                 logging.info(f"Created OSM background: {osm_resized.size}")
 
-                # Load legend as base (just like BoM backgrounds do)
-                # The legend PNG is 512xH where H = 512 (map area) + 45 (legend) = 557 total
-                base_image = self.load_legend()
-                if base_image is None:
-                    logging.error("Failed to load legend, using OSM background without legend")
-                    return osm_resized
-
-                # Get actual legend dimensions
-                legend_width, legend_height = base_image.size
-                logging.debug(f"Legend image size: {legend_width}x{legend_height}")
-
-                # Paste OSM background (512x512) onto the top 512 pixels of legend base (512x557)
-                # Use the OSM image's alpha channel as mask to preserve transparency
-                # Since OSM is 512 tall, it only affects the top 512 pixels, leaving the 45px legend bar intact
-                base_image.paste(osm_resized, (0, 0), osm_resized)
-                logging.debug(f"Composited OSM background onto legend base, legend bar at bottom preserved")
-
-                return base_image
+                return osm_resized
 
             except Exception as e:
                 logging.error(f"Failed to create OSM background: {e}")
@@ -551,15 +534,12 @@ class RadarProcessor:
             product_id: BOM product ID
 
         Returns:
-            PIL Image object (512x512 RGBA) with legend, background, and optional layers
+            PIL Image object (512x512 RGBA) with background and optional layers
         """
         logging.info(f"Creating BoM background for {product_id}")
 
-        # Load legend as base
-        base_image = self.load_legend()
-        if base_image is None:
-            logging.error("Failed to load legend, creating blank image")
-            base_image = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
+        # Start with blank 512x512 image
+        base_image = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
 
         # Connect to FTP and build composite layers
         try:
@@ -744,24 +724,57 @@ class RadarProcessor:
         logging.debug(f"Made timestamp text (RGB 0,0,0) transparent in bottom {timestamp_region_height}px of image {img.size}")
         return img
 
-    def add_frame_indicator(self, image, frame_index, total_frames):
-        """Add a progress bar at the bottom of the image to indicate animation progress
+    def add_legend_bar(self, image):
+        """Add the color scale legend bar at the bottom of the image
 
         Args:
-            image: PIL Image object in RGBA mode
+            image: PIL Image object in RGBA mode (512x512)
+
+        Returns:
+            PIL Image with legend bar added at bottom (512x520)
+        """
+        # Load legend
+        legend = self.load_legend()
+        if legend is None:
+            logging.warning("Could not load legend, returning image without legend")
+            return image
+
+        legend_width, legend_height = legend.size  # Should be 492x8
+        img_width, img_height = image.size  # Should be 512x512
+
+        # Create new image with extra height for legend
+        new_height = img_height + legend_height
+        extended = Image.new('RGBA', (img_width, new_height), (255, 255, 255, 255))
+
+        # Paste original image at top
+        extended.paste(image, (0, 0), image)
+
+        # Center and paste legend at bottom
+        legend_x = (img_width - legend_width) // 2  # Center horizontally
+        legend_y = img_height  # At the bottom
+        extended.paste(legend, (legend_x, legend_y), legend)
+
+        logging.debug(f"Added legend bar at bottom: final size {extended.size}")
+        return extended
+
+    def add_frame_indicator(self, image, frame_index, total_frames):
+        """Add a subtle progress bar just above the legend to indicate animation progress
+
+        Args:
+            image: PIL Image object in RGBA mode (512x520 with legend)
             frame_index: Current frame number (0-indexed)
             total_frames: Total number of frames in the animation
 
         Returns:
-            PIL Image with frame indicator bar added at the bottom
+            PIL Image with frame indicator bar drawn above legend
         """
         img = image.copy()
         draw = ImageDraw.Draw(img)
 
         # Bar dimensions
-        bar_height = 4  # 4 pixels tall for better visibility
-        # Position at bottom, just above the legend (45 pixels from bottom + small gap)
-        bar_y = img.height - 50  # 5 pixels above the legend bar
+        bar_height = 3  # 3 pixels tall, subtle
+        # Position just above the legend (legend is 8px at bottom, place bar 2px above it)
+        bar_y = img.height - 10  # 10 pixels from bottom = 2px gap + 8px legend
 
         # Calculate progress
         if total_frames > 1:
@@ -769,20 +782,14 @@ class RadarProcessor:
         else:
             progress_width = img.width
 
-        # Draw background bar (light gray, semi-transparent)
-        draw.rectangle(
-            [(0, bar_y), (img.width - 1, bar_y + bar_height - 1)],
-            fill=(200, 200, 200, 120)
-        )
-
-        # Draw the progress portion (bright cyan, fully opaque)
+        # Draw the progress portion (medium grey on white background, subtle)
         if progress_width > 0:
             draw.rectangle(
                 [(0, bar_y), (progress_width, bar_y + bar_height - 1)],
-                fill=(0, 255, 255, 255)
+                fill=(128, 128, 128, 255)  # Medium grey, fully opaque
             )
 
-        logging.debug(f"Added frame indicator at bottom: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
+        logging.debug(f"Added frame indicator: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
         return img
 
     def calculate_radar_offset(self, primary_product_id, secondary_product_id):
@@ -896,19 +903,6 @@ class RadarProcessor:
                                f"({self.config['residential_lat']}, {self.config['residential_lon']})")
                 else:
                     logging.warning("Could not load house icon, marker will be disabled")
-
-            # Save the legend area (bottom 45px) to re-apply after radar compositing
-            # This ensures the legend always appears on top, even if radar data overlaps it
-            # The legend bar is 45 pixels at the bottom of the 512x557 image
-            legend_height = 45
-            base_width, base_height = base_image.size
-            legend_area = None
-
-            if base_height > legend_height:
-                legend_area = base_image.crop((0, base_height - legend_height, base_width, base_height))
-                logging.debug(f"Saved legend area: {legend_area.size}")
-            else:
-                logging.warning(f"Base image height ({base_height}) <= legend height ({legend_height}), cannot extract legend")
 
             # Connect to FTP server for radar data
             logging.info("Connecting to BOM FTP server...")
@@ -1139,12 +1133,8 @@ class RadarProcessor:
                         frame.paste(primary_image, (0, 0), primary_image)
                         logging.debug(f"Pasted primary radar for timestamp {timestamp}")
 
-                    # Re-paste legend area on top to ensure it's always visible
-                    # This prevents second/third radar from obscuring the legend
-                    if legend_area is not None:
-                        legend_y = base_height - legend_height
-                        frame.paste(legend_area, (0, legend_y), legend_area)
-                        logging.debug(f"Re-pasted legend area at bottom")
+                    # Add legend bar at bottom (all frames get the legend)
+                    frame = self.add_legend_bar(frame)
 
                     self.frames.append(frame)
                     logging.debug(f"Successfully created frame for timestamp {timestamp}")
