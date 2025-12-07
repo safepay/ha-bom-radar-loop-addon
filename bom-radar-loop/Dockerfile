@@ -19,7 +19,7 @@ COPY requirements.txt ./
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Install TileServer GL globally
-RUN npm install -g tileserver-gl@4.12.4
+RUN npm install -g tileserver-gl@5.4.0
 
 # Copy application files
 COPY bom_radar_downloader.py ./
