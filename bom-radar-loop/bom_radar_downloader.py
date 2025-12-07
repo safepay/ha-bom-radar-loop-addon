@@ -745,7 +745,7 @@ class RadarProcessor:
         return img
 
     def add_frame_indicator(self, image, frame_index, total_frames):
-        """Add a progress bar at the top of the image to indicate animation progress
+        """Add a progress bar at the bottom of the image to indicate animation progress
 
         Args:
             image: PIL Image object in RGBA mode
@@ -753,14 +753,15 @@ class RadarProcessor:
             total_frames: Total number of frames in the animation
 
         Returns:
-            PIL Image with frame indicator bar added at the top
+            PIL Image with frame indicator bar added at the bottom
         """
         img = image.copy()
         draw = ImageDraw.Draw(img)
 
         # Bar dimensions
         bar_height = 4  # 4 pixels tall for better visibility
-        bar_y = 0  # At the very top
+        # Position at bottom, just above the legend (45 pixels from bottom + small gap)
+        bar_y = img.height - 50  # 5 pixels above the legend bar
 
         # Calculate progress
         if total_frames > 1:
@@ -781,7 +782,7 @@ class RadarProcessor:
                 fill=(0, 255, 255, 255)
             )
 
-        logging.debug(f"Added frame indicator: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
+        logging.debug(f"Added frame indicator at bottom: frame {frame_index + 1}/{total_frames}, progress bar width: {progress_width}px")
         return img
 
     def calculate_radar_offset(self, primary_product_id, secondary_product_id):
@@ -1145,9 +1146,6 @@ class RadarProcessor:
                         frame.paste(legend_area, (0, legend_y), legend_area)
                         logging.debug(f"Re-pasted legend area at bottom")
 
-                    # Add subtle frame indicator bar at top to show animation progress
-                    frame = self.add_frame_indicator(frame, frame_index, total_frames)
-
                     self.frames.append(frame)
                     logging.debug(f"Successfully created frame for timestamp {timestamp}")
 
@@ -1168,16 +1166,23 @@ class RadarProcessor:
 
             logging.info(f"Saved {len(self.saved_filenames)} PNG images")
 
-            # Create GIF frames with house marker (if enabled)
+            # Create GIF frames with progress indicator and house marker (if enabled)
             gif_frames = []
+            total_frames = len(self.frames)
+
             if house_icon is not None:
-                logging.info("Adding house markers to GIF frames only")
-                for frame in self.frames:
+                logging.info("Adding progress indicators and house markers to GIF frames only")
+                for frame_index, frame in enumerate(self.frames):
                     gif_frame = frame.copy()
+                    gif_frame = self.add_frame_indicator(gif_frame, frame_index, total_frames)
                     gif_frame = self.add_house_marker(gif_frame, house_icon)
                     gif_frames.append(gif_frame)
             else:
-                gif_frames = self.frames
+                logging.info("Adding progress indicators to GIF frames only")
+                for frame_index, frame in enumerate(self.frames):
+                    gif_frame = frame.copy()
+                    gif_frame = self.add_frame_indicator(gif_frame, frame_index, total_frames)
+                    gif_frames.append(gif_frame)
 
             # Save animated GIF
             gif_filepath = os.path.join(
