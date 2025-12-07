@@ -1,6 +1,6 @@
 {
   "name": "Australian BoM Radar Loop",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "slug": "bom-radar-loop",
   "description": "Creates animated radar loops from Australian Bureau of Meteorology radar data. Choose between BoM backgrounds (with customizable layers) or OpenStreetMap backgrounds (higher resolution, no layer options).",
   "arch": ["aarch64", "amd64", "armhf", "armv7", "i386"],
