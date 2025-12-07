@@ -19,7 +19,7 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 COPY bom_radar_downloader.py ./
 COPY radar_metadata.py ./
 COPY home-circle-dark.png ./
-COPY IDR.legend.0.png ./
+COPY radar-colour-bar.png ./
 COPY run.sh /
 
 # Make run script executable
