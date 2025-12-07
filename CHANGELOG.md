@@ -2,31 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.9] - 2025-12-07
-
-### Added
-- **OpenFreeMap Background Support**: New background option using OpenFreeMap's Positron style
-  - Clean, minimal design optimized for radar overlays with reduced visual clutter
-  - Integrated TileServer GL for server-side rendering of vector tiles to raster images
-  - Uses same tile caching and stitching infrastructure as OpenStreetMap
-  - POIs removed and highway labels optimized for better readability at radar zoom levels
-  - Automatic startup of TileServer GL service when OpenFreeMap background is selected
-  - Falls back to BoM background if TileServer GL fails to start or tile rendering fails
-
-### Changed
-- Updated `MapTileProvider` class to support configurable tile URLs (OpenStreetMap or OpenFreeMap)
-- Enhanced startup script to conditionally launch TileServer GL based on selected background type
-- Updated configuration schema to include "openfreemap" as third background option
-- Generalized logging and code references from "OSM" to "map" for better abstraction
-- Updated all documentation to reflect new background option
-
-### Technical
-- Added Node.js and TileServer GL dependencies to Docker image
-- Created TileServer GL configuration file with OpenFreeMap style URLs
-- Modified `RadarProcessor` to initialize appropriate tile provider based on background type
-- TileServer GL runs on localhost:8080 and serves rendered PNG tiles
-- Startup script waits up to 30 seconds for TileServer GL to be ready before starting Python service
-
 ## [1.0.8] - 2025-12-07
 
 ### Added
