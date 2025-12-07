@@ -761,7 +761,7 @@ class RadarProcessor:
         return extended
 
     def add_timestamp_overlay(self, image, timestamp_str):
-        """Add timestamp overlay in top-left corner
+        """Add timestamp overlay in top-left corner with semi-transparent background
 
         Args:
             image: PIL Image object in RGBA mode (512x520 with legend)
@@ -797,17 +797,28 @@ class RadarProcessor:
                     font = ImageFont.load_default()
 
             # Position in top-left with some padding
-            x = 10
-            y = 10
+            text_x = 10
+            text_y = 10
+            padding = 5  # Padding around text inside the box
 
-            # Draw text with black outline for visibility
-            outline_width = 2
-            for adj_x in range(-outline_width, outline_width + 1):
-                for adj_y in range(-outline_width, outline_width + 1):
-                    draw.text((x + adj_x, y + adj_y), time_str, font=font, fill=(0, 0, 0, 255))
+            # Get text bounding box
+            bbox = draw.textbbox((text_x, text_y), time_str, font=font)
+
+            # Draw semi-transparent dark background box
+            box_coords = [
+                bbox[0] - padding,  # left
+                bbox[1] - padding,  # top
+                bbox[2] + padding,  # right
+                bbox[3] + padding   # bottom
+            ]
+            draw.rounded_rectangle(
+                box_coords,
+                radius=5,
+                fill=(0, 0, 0, 180)  # Semi-transparent black
+            )
 
             # Draw white text on top
-            draw.text((x, y), time_str, font=font, fill=(255, 255, 255, 255))
+            draw.text((text_x, text_y), time_str, font=font, fill=(255, 255, 255, 255))
 
             logging.debug(f"Added timestamp overlay: {time_str}")
 
