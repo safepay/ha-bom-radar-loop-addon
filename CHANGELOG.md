@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.11] - 2025-12-08
+
+### Added
+- **Timestamp Overlay on GIF Frames**: Animated GIFs now display local time in top-left corner
+  - Format: "h:mm am/pm" (e.g., "4:23 pm", "12:05 am")
+  - Uses primary radar's timestamp converted to local timezone
+  - White text with black outline for visibility on any background
+  - Positioned consistently (am/pm alignment doesn't shift)
+  - Applied only to GIF frames (PNG frames remain clean)
+
+### Changed
+- Removed progress bar in favor of timestamp display
+  - Timestamps provide more useful temporal context than progress indicator
+  - Users can see exact time of each radar observation
+
+### Technical
+- Added `add_timestamp_overlay()` method for rendering timestamps
+- Imported ImageFont for text rendering with DejaVu Sans Bold
+- Added self.timestamps list to track timestamps alongside frames
+- Timestamps parsed from UTC and converted to configured timezone
+- Black text outline drawn for visibility on light/dark backgrounds
+
 ## [1.0.10] - 2025-12-07
 
 ### Added
