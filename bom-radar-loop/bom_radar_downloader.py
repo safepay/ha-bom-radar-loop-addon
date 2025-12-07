@@ -1161,6 +1161,9 @@ class RadarProcessor:
                     # Add legend bar at bottom (all frames get the legend)
                     frame = self.add_legend_bar(frame)
 
+                    # Add timestamp overlay (all frames get timestamps)
+                    frame = self.add_timestamp_overlay(frame, timestamp)
+
                     self.frames.append(frame)
                     self.timestamps.append(timestamp)
                     logging.debug(f"Successfully created frame for timestamp {timestamp}")
@@ -1182,22 +1185,19 @@ class RadarProcessor:
 
             logging.info(f"Saved {len(self.saved_filenames)} PNG images")
 
-            # Create GIF frames with timestamp overlay and house marker (if enabled)
+            # Create GIF frames with house marker (if enabled)
+            # Timestamps are already on the frames from frame creation
             gif_frames = []
 
             if house_icon is not None:
-                logging.info("Adding timestamps and house markers to GIF frames only")
-                for frame, timestamp in zip(self.frames, self.timestamps):
+                logging.info("Adding house markers to GIF frames only")
+                for frame in self.frames:
                     gif_frame = frame.copy()
-                    gif_frame = self.add_timestamp_overlay(gif_frame, timestamp)
                     gif_frame = self.add_house_marker(gif_frame, house_icon)
                     gif_frames.append(gif_frame)
             else:
-                logging.info("Adding timestamps to GIF frames only")
-                for frame, timestamp in zip(self.frames, self.timestamps):
-                    gif_frame = frame.copy()
-                    gif_frame = self.add_timestamp_overlay(gif_frame, timestamp)
-                    gif_frames.append(gif_frame)
+                # No modifications needed, just use frames directly
+                gif_frames = self.frames
 
             # Save animated GIF
             gif_filepath = os.path.join(
