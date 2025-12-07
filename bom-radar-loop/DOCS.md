@@ -61,10 +61,10 @@ The background layer is always included with BoM backgrounds. Simply check/unche
 
 ### Background Type
 
-Choose between Bureau of Meteorology or OpenStreetMap backgrounds:
+Choose between Bureau of Meteorology, OpenStreetMap, or OpenFreeMap backgrounds:
 
 ```yaml
-background_type: bom
+background_type: bom  # Options: bom, openstreetmap, openfreemap
 ```
 
 - **bom** (default): Uses the official BoM radar background
@@ -76,10 +76,17 @@ background_type: bom
   - **No layer customization** - shows OSM map tiles only
   - Legend is still included
 
-**OpenStreetMap Background Features:**
+- **openfreemap**: Uses OpenFreeMap with Positron style (new in v1.0.9)
+  - Clean, minimal design optimized for radar overlays
+  - POIs removed and highway labels optimized for readability
+  - **No layer customization** - shows OpenFreeMap tiles only
+  - Legend is still included
+  - Requires TileServer GL (automatically started)
+
+**OpenStreetMap/OpenFreeMap Background Features:**
 - **Higher Resolution**: Fetches map tiles at 1024×1024 resolution, then downsamples to 512×512 for sharper, clearer backgrounds
 - **Automatic Zoom Optimization**: Zoom level is automatically calculated based on your radar's range (512km, 256km, 128km, or 64km)
-- **Persistent Caching**: Map tiles are cached locally for 30 days, providing near-instant background loading on subsequent runs and reducing load on OpenStreetMap servers
+- **Persistent Caching**: Map tiles are cached locally for 30 days, providing near-instant background loading on subsequent runs
 - **Applies to Both PNG and GIF**: Both individual frame PNGs and the animated GIF will use the selected background
 - **Note**: BoM layer options (catchments, topography, locations, range) are only available when using BoM backgrounds
 
@@ -87,6 +94,12 @@ background_type: bom
 - You want clearer, more detailed street maps and landmarks
 - You're using the radar for local area monitoring where street-level detail matters
 - You prefer modern map styling over BoM's basic background
+
+**When to use OpenFreeMap:**
+- You want a clean, uncluttered background that emphasizes the radar data
+- You prefer minimal map labels that don't compete with radar imagery
+- You want a professional-looking presentation optimized for radar overlays
+- You don't need detailed street-level information
 
 **When to use BoM (default):**
 - You want the official BoM layers (catchments, topography, etc.)

@@ -1,11 +1,14 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Install Python and dependencies
+# Install Python, Node.js, and dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    bash
+    bash \
+    nodejs \
+    npm \
+    wget
 
 WORKDIR /app
 
@@ -15,11 +18,15 @@ COPY requirements.txt ./
 # Install Python dependencies (--break-system-packages is required for Python 3.12+ in Alpine)
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
+# Install TileServer GL globally
+RUN npm install -g tileserver-gl@4.12.4
+
 # Copy application files
 COPY bom_radar_downloader.py ./
 COPY radar_metadata.py ./
 COPY home-circle-dark.png ./
 COPY IDR.legend.0.png ./
+COPY tileserver-config.json ./
 COPY run.sh /
 
 # Make run script executable

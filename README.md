@@ -9,7 +9,7 @@ Animated radar loops and individual radar frames from Australian Bureau of Meteo
 ## Features
 
 - 🤖 **LLM Vision Ready**: Individual PNG frames for AI-powered storm detection and analysis
-- 🗺️ **Choose Background**: BoM official or OpenStreetMap (higher resolution with tile caching)
+- 🗺️ **Choose Background**: BoM official, OpenStreetMap, or OpenFreeMap (clean Positron style optimized for radar overlays)
 - 🎬 **Animated Loops**: Smooth GIF animations for dashboards
 - 🌏 **Multiple Radars**: Overlay up to 3 radars for extended coverage
 - 🏠 **Location Marker**: Show your home on the radar
@@ -75,13 +75,14 @@ Five frames available: `image_1.png` (oldest) to `image_5.png` (newest). Use wit
 radar_product_id: IDR022      # Your radar (see Quick Reference below)
 timezone: Australia/Melbourne
 update_interval: 600          # Seconds (10 minutes)
-background_type: bom          # "bom" or "openstreetmap"
+background_type: bom          # "bom", "openstreetmap", or "openfreemap"
 ```
 
 ### Background Options
 
 - **bom** (default): Official BoM background with customizable layers
 - **openstreetmap**: Higher resolution street maps with automatic tile caching
+- **openfreemap**: Clean Positron style with minimal design, optimized for radar overlays (uses TileServer GL)
 
 BoM layers (only with BoM background): locations, catchments, topography, range
 
@@ -120,10 +121,11 @@ residential_longitude: 144.9631
 - Check addon is running (green status)
 - View addon logs for errors
 
-**OpenStreetMap not working?**
-- First run downloads tiles (30-60 seconds)
-- Check logs for tile download errors
-- Addon falls back to BoM if tiles fail
+**OpenStreetMap/OpenFreeMap not working?**
+- First run downloads tiles (30-60 seconds for OSM, up to 60 seconds for OpenFreeMap startup)
+- Check logs for tile download or TileServer GL errors
+- Addon falls back to BoM if map background creation fails
+- OpenFreeMap requires TileServer GL to start successfully (check addon logs)
 
 **No images appearing?**
 - Check addon logs
@@ -136,7 +138,7 @@ Located in `/config/www/bom_radar/`:
 - `radar_animated.gif` - Animated loop (5 frames) for dashboards
 - `image_1.png` to `image_5.png` - Individual frames for LLM Vision analysis
 - `radar_last_update.txt` - Timestamp information
-- `radar_status.json` - Detailed radar status and availability (new in v1.0.8)
+- `radar_status.json` - Detailed radar status and availability (since v1.0.8)
 
 Access via `/local/bom_radar/filename` in dashboards and automations.
 
