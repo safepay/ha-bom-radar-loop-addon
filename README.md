@@ -45,10 +45,13 @@ Animated radar loops and individual radar frames from Australian Bureau of Meteo
 ```yaml
 type: picture-entity
 entity: camera.bom_radar_loop
+camera_entity: camera.bom_radar_loop
 camera_view: live
 show_name: true
 show_state: false
 ```
+
+   **Note**: Set both `entity` and `camera_entity` to `camera.bom_radar_loop`
 
 **Why?** Simple picture cards cache images and won't update. Local File camera + Picture Entity ensures proper refreshing.
 

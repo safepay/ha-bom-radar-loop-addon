@@ -155,10 +155,13 @@ Now add the radar to your dashboard using a **Picture Entity** card:
 ```yaml
 type: picture-entity
 entity: camera.bom_radar_loop
+camera_entity: camera.bom_radar_loop
 camera_view: live
 show_name: true
 show_state: false
 ```
+
+**Important**: Set both `entity` and `camera_entity` to the same camera entity (`camera.bom_radar_loop`).
 
 The Picture Entity card will automatically refresh and show the latest animated radar loop.
 
