@@ -804,7 +804,7 @@ class RadarProcessor:
             # Get text bounding box
             bbox = draw.textbbox((text_x, text_y), time_str, font=font)
 
-            # Draw semi-transparent dark background box
+            # Draw opaque white background box
             box_coords = [
                 bbox[0] - padding,  # left
                 bbox[1] - padding,  # top
@@ -814,11 +814,11 @@ class RadarProcessor:
             draw.rounded_rectangle(
                 box_coords,
                 radius=5,
-                fill=(0, 0, 0, 180)  # Semi-transparent black
+                fill=(255, 255, 255, 255)  # Opaque white
             )
 
-            # Draw white text on top
-            draw.text((text_x, text_y), time_str, font=font, fill=(255, 255, 255, 255))
+            # Draw dark grey text on top
+            draw.text((text_x, text_y), time_str, font=font, fill=(64, 64, 64, 255))
 
             logging.debug(f"Added timestamp overlay: {time_str}")
 
