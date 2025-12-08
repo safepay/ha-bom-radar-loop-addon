@@ -31,7 +31,7 @@ Animated radar loops and individual radar frames from Australian Bureau of Meteo
 
 ## Using in Home Assistant
 
-**⚠️ Important**: You MUST use Local File camera integration + Picture Glance card to avoid caching issues.
+**⚠️ Important**: You MUST use Local File camera integration + Picture Entity card to avoid caching issues.
 
 ### Setup (Required)
 
@@ -40,17 +40,17 @@ Animated radar loops and individual radar frames from Australian Bureau of Meteo
    - File path: `/config/www/bom_radar/radar_animated.gif`
    - Name: "BoM Radar Loop"
 
-2. **Add Picture Glance Card** to dashboard:
+2. **Add Picture Entity Card** to dashboard:
 
 ```yaml
-type: picture-glance
-title: Radar
-camera_image: camera.bom_radar_loop
+type: picture-entity
+entity: camera.bom_radar_loop
 camera_view: live
-entities: []
+show_name: true
+show_state: false
 ```
 
-**Why?** Simple picture cards cache images and won't update. Local File camera + Picture Glance ensures proper refreshing.
+**Why?** Simple picture cards cache images and won't update. Local File camera + Picture Entity ensures proper refreshing.
 
 ### LLM Vision Analysis
 
@@ -116,7 +116,7 @@ residential_longitude: 144.9631
 ## Troubleshooting
 
 **Images not updating?**
-- Use Local File integration + Picture Glance card (not simple picture card)
+- Use Local File integration + Picture Entity card (not simple picture card)
 - Check addon is running (green status)
 - View addon logs for errors
 
