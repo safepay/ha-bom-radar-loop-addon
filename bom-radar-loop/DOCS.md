@@ -143,24 +143,27 @@ First, add the animated radar GIF as a camera entity using the **Local File** in
 
 This creates a camera entity (e.g., `camera.bom_radar_loop`) that you can use in your dashboard.
 
-### Step 2: Add to Dashboard with Picture Glance Card
+### Step 2: Add to Dashboard with Picture Entity Card
 
-Now add the radar to your dashboard using a **Picture Glance** card:
+Now add the radar to your dashboard using a **Picture Entity** card:
 
 1. Edit your dashboard
 2. Click **Add Card**
-3. Select **Picture Glance**
+3. Select **Picture Entity**
 4. Configure the card:
 
 ```yaml
-type: picture-glance
-title: Melbourne Radar
-camera_image: camera.bom_radar_loop
+type: picture-entity
+entity: camera.bom_radar_loop
+camera_entity: camera.bom_radar_loop
 camera_view: live
-entities: []
+show_name: true
+show_state: false
 ```
 
-The Picture Glance card will automatically refresh and show the latest animated radar loop.
+**Important**: Set both `entity` and `camera_entity` to the same camera entity (`camera.bom_radar_loop`).
+
+The Picture Entity card will automatically refresh and show the latest animated radar loop.
 
 ### Alternative: Simple Picture Card
 
@@ -171,7 +174,7 @@ type: picture
 image: /local/bom_radar/radar_animated.gif
 ```
 
-**Note**: The Picture Glance card with camera entity is recommended as it handles updates more reliably.
+**Note**: The Picture Entity card with camera entity is recommended as it handles updates more reliably.
 
 ### Access Individual Frames
 

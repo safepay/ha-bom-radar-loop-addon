@@ -128,7 +128,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Updated DOCS.md with comprehensive Home Assistant setup instructions
 - Added detailed Local File camera integration setup steps
-- Added Picture Glance card configuration examples for dashboard
+- Added Picture Entity card configuration examples for dashboard
 - Updated README.md with improved radar setup instructions
 - Improved guidance for finding radar product IDs
 
