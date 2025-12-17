@@ -16,7 +16,7 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.8'
+VERSION = '1.0.12'
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
@@ -30,7 +30,7 @@ class MapTileProvider:
     OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
     # User-Agent required by OSM tile usage policy
-    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.8 (https://github.com/safepay/ha-bom-radar-loop-addon)"
+    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.12 (https://github.com/safepay/ha-bom-radar-loop-addon)"
 
     # Cache expiry: 30 days (map tiles rarely change)
     CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
@@ -544,7 +544,7 @@ class RadarProcessor:
 
         # Connect to FTP and build composite layers
         try:
-            ftp = ftplib.FTP('ftp.bom.gov.au')
+            ftp = ftplib.FTP('ftp.bom.gov.au', timeout=30)
             ftp.login()
             ftp.cwd('anon/gen/radar_transparencies/')
 
@@ -942,7 +942,7 @@ class RadarProcessor:
 
             # Connect to FTP server for radar data
             logging.info("Connecting to BOM FTP server...")
-            ftp = ftplib.FTP('ftp.bom.gov.au')
+            ftp = ftplib.FTP('ftp.bom.gov.au', timeout=30)
             ftp.login()
             ftp.cwd('/anon/gen/radar/')
 
