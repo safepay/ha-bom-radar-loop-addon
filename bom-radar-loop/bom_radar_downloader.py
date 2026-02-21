@@ -6,6 +6,7 @@ import os
 import sys
 import asyncio
 import logging
+import signal
 import time
 import urllib.request
 import urllib.error
@@ -16,7 +17,15 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.12'
+VERSION = '1.0.13'
+
+# --- Image pipeline constants ---
+RADAR_IMAGE_SIZE = 512          # BOM radar PNGs are always 512x512
+COPYRIGHT_STRIP_PX = 16         # Top pixels containing BOM copyright text
+TIMESTAMP_STRIP_PX = 20         # Bottom pixels containing BOM timestamp text
+FRAME_COUNT = 5                  # Number of most-recent radar frames to fetch
+OSM_TILE_SIZE = 256              # OpenStreetMap tile dimensions (px)
+OSM_SUPERSAMPLE_SIZE = 1024     # High-res OSM composite before downsampling
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
@@ -29,8 +38,8 @@ class MapTileProvider:
     # OpenStreetMap tile server URL
     OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
-    # User-Agent required by OSM tile usage policy
-    USER_AGENT = "HomeAssistant-BoM-Radar-Addon/1.0.12 (https://github.com/safepay/ha-bom-radar-loop-addon)"
+    # User-Agent required by OSM tile usage policy (set dynamically in __init__ using VERSION)
+    USER_AGENT = None
 
     # Cache expiry: 30 days (map tiles rarely change)
     CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
@@ -43,12 +52,28 @@ class MapTileProvider:
             cache_dir: Directory path for persistent tile cache
         """
         self.cache_dir = Path(cache_dir)
-        self.memory_cache = {}  # Session cache for faster access
+        # LRU cache capped at 256 tiles (~64 MB) to prevent unbounded memory growth
+        self._tile_cache_order = []
+        self._tile_cache_max = 256
+        self.memory_cache = {}  # Session LRU cache for faster access
+        # Set User-Agent using the module-level VERSION constant
+        self.USER_AGENT = f"HomeAssistant-BoM-Radar-Addon/{VERSION} (https://github.com/safepay/ha-bom-radar-loop-addon)"
 
         # Create cache directory if it doesn't exist
         if not self.cache_dir.exists():
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             logging.info(f"Created tile cache directory: {self.cache_dir}")
+
+    def _lru_insert(self, key, value):
+        """Insert a tile into the LRU memory cache, evicting the oldest if full."""
+        if key in self.memory_cache:
+            self._tile_cache_order.remove(key)
+        elif len(self.memory_cache) >= self._tile_cache_max:
+            oldest = self._tile_cache_order.pop(0)
+            del self.memory_cache[oldest]
+            logging.debug(f"LRU evicted tile {oldest} from memory cache")
+        self.memory_cache[key] = value
+        self._tile_cache_order.append(key)
 
     @staticmethod
     def latlon_to_tile(lat, lon, zoom):
@@ -100,10 +125,12 @@ class MapTileProvider:
         Returns:
             PIL Image object (256x256 pixels)
         """
-        # Check memory cache first
+        # Check memory cache first (LRU: move to end on hit)
         cache_key = f"{z}/{x}/{y}"
         if cache_key in self.memory_cache:
             logging.debug(f"Tile {cache_key} loaded from memory cache")
+            self._tile_cache_order.remove(cache_key)
+            self._tile_cache_order.append(cache_key)
             return self.memory_cache[cache_key]
 
         # Check disk cache
@@ -115,7 +142,7 @@ class MapTileProvider:
             if cache_age < self.CACHE_EXPIRY_SECONDS:
                 logging.debug(f"Tile {cache_key} loaded from disk cache (age: {cache_age/86400:.1f} days)")
                 tile = Image.open(cache_path).convert('RGBA')
-                self.memory_cache[cache_key] = tile
+                self._lru_insert(cache_key, tile)
                 return tile
             else:
                 logging.debug(f"Tile {cache_key} cache expired, re-downloading")
@@ -135,8 +162,8 @@ class MapTileProvider:
             tile.save(cache_path, 'PNG')
             logging.debug(f"Tile {cache_key} saved to disk cache")
 
-            # Save to memory cache
-            self.memory_cache[cache_key] = tile
+            # Save to LRU memory cache
+            self._lru_insert(cache_key, tile)
 
             return tile
 
@@ -173,8 +200,8 @@ class MapTileProvider:
         center_tile_y = int(exact_y)
 
         # Fetch a larger grid to allow for sub-tile centering
-        # For 1024x1024 output (4x4 tiles), fetch 6x6 tiles to have margin
-        tiles_per_side = (size // 256) + 2  # Add 2 for margin
+        # e.g. for 1024x1024 output (4x4 tiles), fetch 6x6 tiles for margin
+        tiles_per_side = (size // OSM_TILE_SIZE) + 2  # Add 2 for margin
         half_tiles = tiles_per_side // 2
 
         # Calculate tile range
@@ -182,7 +209,7 @@ class MapTileProvider:
         start_y = center_tile_y - half_tiles
 
         # Create the stitched image (larger than needed)
-        stitched_size = tiles_per_side * 256
+        stitched_size = tiles_per_side * OSM_TILE_SIZE
         stitched = Image.new('RGBA', (stitched_size, stitched_size))
 
         # Fetch and paste each tile
@@ -193,15 +220,15 @@ class MapTileProvider:
 
                 tile = self.fetch_tile(zoom, tile_x, tile_y)
 
-                paste_x = dx * 256
-                paste_y = dy * 256
+                paste_x = dx * OSM_TILE_SIZE
+                paste_y = dy * OSM_TILE_SIZE
                 stitched.paste(tile, (paste_x, paste_y))
 
         logging.debug(f"Stitched {tiles_per_side}x{tiles_per_side} tiles into {stitched.size} image")
 
         # Calculate exact pixel position in stitched image
-        pixel_x = (exact_x - start_x) * 256
-        pixel_y = (exact_y - start_y) * 256
+        pixel_x = (exact_x - start_x) * OSM_TILE_SIZE
+        pixel_y = (exact_y - start_y) * OSM_TILE_SIZE
 
         # Crop to center the image on exact coordinates
         crop_left = int(pixel_x - size / 2)
@@ -308,7 +335,11 @@ class Config:
         # Fallback to config.yaml for backward compatibility
         elif CONFIG_FILE.exists():
             logging.info(f'Loading configuration from config file: {CONFIG_FILE}')
-            import yaml
+            try:
+                import yaml
+            except ImportError:
+                logging.error("YAML config support requires 'PyYAML'. Install with: pip install PyYAML")
+                sys.exit(1)
 
             with open(CONFIG_FILE, 'r') as file:
                 config = yaml.safe_load(file)
@@ -400,6 +431,59 @@ class RadarProcessor:
         tile_cache_dir = os.path.join(self.config['output_directory'], 'tile_cache')
         self.tile_provider = MapTileProvider(tile_cache_dir)
     
+    def validate_config(self):
+        """Validate configuration values and warn about potential issues.
+
+        Checks product IDs against the known radar database and validates
+        coordinate ranges. Logs warnings for unknown IDs (new radars added
+        to BOM may not yet be in the local metadata) and errors for
+        obviously-invalid coordinate values.
+        """
+        issues = []
+
+        # Validate primary product ID
+        pid = self.config.get('product_id', '')
+        if pid not in RADAR_METADATA:
+            logging.warning(
+                f"Primary radar product ID '{pid}' not found in radar_metadata.py. "
+                "House marker positioning may be inaccurate."
+            )
+
+        # Validate optional secondary/tertiary product IDs
+        for label, key in [('second', 'second_radar_product_id'), ('third', 'third_radar_product_id')]:
+            enabled_key = f'{label}_radar_enabled'
+            if self.config.get(enabled_key) and self.config.get(key):
+                sid = self.config[key]
+                if sid not in RADAR_METADATA:
+                    logging.warning(
+                        f"{label.capitalize()} radar product ID '{sid}' not found in "
+                        "radar_metadata.py. Radar offset calculation may be inaccurate."
+                    )
+
+        # Validate residential coordinates
+        if self.config.get('residential_enabled'):
+            lat = self.config.get('residential_lat')
+            lon = self.config.get('residential_lon')
+            if lat is None or lon is None:
+                issues.append("Residential location is enabled but lat/lon are not set")
+            else:
+                if not (-90.0 <= float(lat) <= 90.0):
+                    issues.append(f"residential_latitude {lat} is out of valid range [-90, 90]")
+                if not (-180.0 <= float(lon) <= 180.0):
+                    issues.append(f"residential_longitude {lon} is out of valid range [-180, 180]")
+
+        # Validate timezone
+        tz_str = self.config.get('timezone', '')
+        try:
+            pytz.timezone(tz_str)
+        except pytz.exceptions.UnknownTimeZoneError:
+            issues.append(f"Unknown timezone '{tz_str}'. Check pytz timezone names.")
+
+        for issue in issues:
+            logging.error(f"Config validation error: {issue}")
+
+        return len(issues) == 0
+
     def load_legend(self):
         """Load the legend image"""
         legend_path = self.config['legend_file']
@@ -503,15 +587,15 @@ class RadarProcessor:
             # Calculate optimal zoom level
             zoom = self.get_optimal_zoom(product_id)
 
-            # Create high-resolution OSM background (1024x1024)
+            # Create high-resolution OSM background then downsample for quality
             try:
                 osm_background = self.tile_provider.create_background(
-                    lat, lon, zoom, size=1024
+                    lat, lon, zoom, size=OSM_SUPERSAMPLE_SIZE
                 )
 
-                # Downsample to 512x512 with high-quality antialiasing
+                # Downsample to radar image size with high-quality antialiasing
                 osm_resized = osm_background.resize(
-                    (512, 512),
+                    (RADAR_IMAGE_SIZE, RADAR_IMAGE_SIZE),
                     Image.Resampling.LANCZOS
                 )
                 logging.info(f"Created OSM background: {osm_resized.size}")
@@ -539,8 +623,8 @@ class RadarProcessor:
         """
         logging.info(f"Creating BoM background for {product_id}")
 
-        # Start with blank 512x512 image
-        base_image = Image.new('RGBA', (512, 512), (255, 255, 255, 0))
+        # Start with blank radar-sized image
+        base_image = Image.new('RGBA', (RADAR_IMAGE_SIZE, RADAR_IMAGE_SIZE), (255, 255, 255, 0))
 
         # Connect to FTP and build composite layers
         try:
@@ -616,11 +700,10 @@ class RadarProcessor:
         dx = dlon * R * math.cos(lat1)
 
         # Convert km to pixels
-        # BOM radar images are always 512x512, so center is at (256, 256)
+        # BOM radar images are always RADAR_IMAGE_SIZE square; center is at the midpoint
         # regardless of the total composite image size (which includes legend)
-        RADAR_SIZE = 512
-        center_x = RADAR_SIZE // 2  # 256
-        center_y = RADAR_SIZE // 2  # 256
+        center_x = RADAR_IMAGE_SIZE // 2
+        center_y = RADAR_IMAGE_SIZE // 2
 
         # Calculate pixel position
         # Note: y increases downward in images, so we subtract dy
@@ -681,9 +764,9 @@ class RadarProcessor:
         img = image.copy()
         width, height = img.size
 
-        # Create a transparent strip for the top 16 pixels
+        # Create a transparent strip for the top copyright pixels
         pixels = img.load()
-        for y in range(min(16, height)):
+        for y in range(min(COPYRIGHT_STRIP_PX, height)):
             for x in range(width):
                 pixels[x, y] = (0, 0, 0, 0)  # Fully transparent
 
@@ -707,8 +790,8 @@ class RadarProcessor:
         width, height = img.size
         pixels = img.load()
 
-        # The timestamp text is in the bottom ~20 pixels
-        timestamp_region_height = 20
+        # The timestamp text is in the bottom pixels
+        timestamp_region_height = TIMESTAMP_STRIP_PX
         start_y = max(0, height - timestamp_region_height)
 
         # Target pure black (RGB 0,0,0) timestamp text
@@ -871,6 +954,45 @@ class RadarProcessor:
 
         return (offset_x, offset_y)
 
+    def download_radar_frames(self, ftp, product_id, label, images_out):
+        """Download the most recent radar frames for a single radar product.
+
+        Args:
+            ftp: Active ftplib.FTP connection, already cwd'd to /anon/gen/radar/
+            product_id: BOM product ID string (e.g. 'IDR022')
+            label: Human-readable label for log messages ('primary', 'second', 'third')
+            images_out: Dict to populate with {timestamp: PIL.Image} entries
+
+        Returns:
+            bool: True if any frames were downloaded, False if radar offline
+        """
+        all_files = [f for f in ftp.nlst()
+                     if f.startswith(product_id) and f.endswith('.png')]
+        sorted_files = sorted(all_files, key=self.get_timestamp)
+        files = sorted_files[-FRAME_COUNT:]
+
+        logging.info(f"Found {len(all_files)} total radar files for {label} radar ({product_id})")
+        if not files:
+            logging.warning(f"{label.capitalize()} radar is offline - no files available")
+            return False
+
+        logging.info(f"Selected most recent {len(files)}: {[f.split('.')[2] for f in files]}")
+        for file in files:
+            timestamp = self.get_timestamp(file)
+            file_obj = io.BytesIO()
+            try:
+                ftp.retrbinary('RETR ' + file, file_obj.write)
+                file_obj.seek(0)
+                image = Image.open(file_obj).convert('RGBA')
+                image = self.remove_copyright(image)
+                image = self.make_timestamp_transparent(image)
+                images_out[timestamp] = image
+                logging.debug(f"Successfully processed {label} radar {file}")
+            except ftplib.all_errors as e:
+                logging.error(f"Error downloading {label} radar {file}: {e}")
+
+        return len(images_out) > 0
+
     def get_timestamp(self, filename):
         """Extract timestamp from filename for sorting"""
         try:
@@ -946,137 +1068,29 @@ class RadarProcessor:
             ftp.login()
             ftp.cwd('/anon/gen/radar/')
 
-            # Get all matching radar files for primary radar
-            all_files = [file for file in ftp.nlst()
-                         if file.startswith(product_id)
-                         and file.endswith('.png')]
-
-            # Sort by timestamp
-            sorted_files = sorted(all_files, key=self.get_timestamp)
-
-            # Get the last 5 (most recent) radar images
-            files = sorted_files[-5:]
-
-            logging.info(f"Found {len(all_files)} total radar files for primary radar")
-            if files:
-                logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in files]}")
-            else:
-                logging.warning("Primary radar is offline - no files available")
-
-            # Download radar images into dictionaries keyed by timestamp
-            # This allows us to align timestamps across multiple radars
+            # Download radar images into dictionaries keyed by timestamp.
+            # Using a helper avoids three near-identical download blocks.
             primary_radar_images = {}
             second_radar_images = {}
             third_radar_images = {}
 
-            # Download primary radar images
-            for file in files:
-                timestamp = self.get_timestamp(file)
-                logging.debug(f"Processing primary radar {file}")
-                file_obj = io.BytesIO()
-                try:
-                    ftp.retrbinary('RETR ' + file, file_obj.write)
-                    file_obj.seek(0)
-                    image = Image.open(file_obj).convert('RGBA')
-
-                    # Process primary radar image: remove copyright and timestamp
-                    image = self.remove_copyright(image)
-                    image = self.make_timestamp_transparent(image)
-
-                    primary_radar_images[timestamp] = image
-                    logging.debug(f"Successfully processed primary radar {file}")
-                except ftplib.all_errors as e:
-                    logging.error(f"Error downloading primary radar {file}: {e}")
+            self.download_radar_frames(ftp, product_id, 'primary', primary_radar_images)
 
             # Download second radar images if enabled
             offset_x, offset_y = 0, 0
             if second_radar_enabled and second_radar_product_id:
                 logging.info(f"Second radar enabled: {second_radar_product_id}")
-
-                # Get all matching files for second radar
-                all_second_files = [file for file in ftp.nlst()
-                                   if file.startswith(second_radar_product_id)
-                                   and file.endswith('.png')]
-
-                # Sort by timestamp
-                sorted_second_files = sorted(all_second_files, key=self.get_timestamp)
-
-                # Get the last 5 (most recent) radar images
-                second_files = sorted_second_files[-5:]
-
-                logging.info(f"Found {len(all_second_files)} total files for second radar")
-                if second_files:
-                    logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in second_files]}")
-
-                    # Download second radar images
-                    for file in second_files:
-                        timestamp = self.get_timestamp(file)
-                        logging.debug(f"Processing second radar {file}")
-                        file_obj = io.BytesIO()
-                        try:
-                            ftp.retrbinary('RETR ' + file, file_obj.write)
-                            file_obj.seek(0)
-                            image = Image.open(file_obj).convert('RGBA')
-
-                            # Process second radar image: remove copyright and timestamp
-                            image = self.remove_copyright(image)
-                            image = self.make_timestamp_transparent(image)
-
-                            second_radar_images[timestamp] = image
-                            logging.debug(f"Successfully processed second radar {file}")
-                        except ftplib.all_errors as e:
-                            logging.error(f"Error downloading second radar {file}: {e}")
-
-                    # Calculate offset for second radar positioning
+                if self.download_radar_frames(ftp, second_radar_product_id, 'second', second_radar_images):
                     offset_x, offset_y = self.calculate_radar_offset(product_id, second_radar_product_id)
                     logging.info(f"Second radar will be offset by ({offset_x}, {offset_y}) pixels")
-                else:
-                    logging.warning("Second radar is offline - no files available")
 
             # Download third radar images if enabled
             third_offset_x, third_offset_y = 0, 0
             if third_radar_enabled and third_radar_product_id:
                 logging.info(f"Third radar enabled: {third_radar_product_id}")
-
-                # Get all matching files for third radar
-                all_third_files = [file for file in ftp.nlst()
-                                   if file.startswith(third_radar_product_id)
-                                   and file.endswith('.png')]
-
-                # Sort by timestamp
-                sorted_third_files = sorted(all_third_files, key=self.get_timestamp)
-
-                # Get the last 5 (most recent) radar images
-                third_files = sorted_third_files[-5:]
-
-                logging.info(f"Found {len(all_third_files)} total files for third radar")
-                if third_files:
-                    logging.info(f"Selected most recent 5: {[f.split('.')[2] for f in third_files]}")
-
-                    # Download third radar images
-                    for file in third_files:
-                        timestamp = self.get_timestamp(file)
-                        logging.debug(f"Processing third radar {file}")
-                        file_obj = io.BytesIO()
-                        try:
-                            ftp.retrbinary('RETR ' + file, file_obj.write)
-                            file_obj.seek(0)
-                            image = Image.open(file_obj).convert('RGBA')
-
-                            # Process third radar image: remove copyright and timestamp
-                            image = self.remove_copyright(image)
-                            image = self.make_timestamp_transparent(image)
-
-                            third_radar_images[timestamp] = image
-                            logging.debug(f"Successfully processed third radar {file}")
-                        except ftplib.all_errors as e:
-                            logging.error(f"Error downloading third radar {file}: {e}")
-
-                    # Calculate offset for third radar positioning
+                if self.download_radar_frames(ftp, third_radar_product_id, 'third', third_radar_images):
                     third_offset_x, third_offset_y = self.calculate_radar_offset(product_id, third_radar_product_id)
                     logging.info(f"Third radar will be offset by ({third_offset_x}, {third_offset_y}) pixels")
-                else:
-                    logging.warning("Third radar is offline - no files available")
 
             # Collect all unique timestamps from all radars
             all_timestamps = set()
@@ -1121,14 +1135,9 @@ class RadarProcessor:
                         third_image = third_radar_images[timestamp]
 
                         # Check if third radar overlaps with primary radar
-                        # Primary radar: (0, 0) to (512, 512)
-                        # Third radar: (third_offset_x, third_offset_y) to (third_offset_x + 512, third_offset_y + 512)
-                        RADAR_SIZE = 512
-
-                        # Rectangles overlap if they intersect
                         overlaps = (
-                            third_offset_x < RADAR_SIZE and (third_offset_x + RADAR_SIZE) > 0 and
-                            third_offset_y < RADAR_SIZE and (third_offset_y + RADAR_SIZE) > 0
+                            third_offset_x < RADAR_IMAGE_SIZE and (third_offset_x + RADAR_IMAGE_SIZE) > 0 and
+                            third_offset_y < RADAR_IMAGE_SIZE and (third_offset_y + RADAR_IMAGE_SIZE) > 0
                         )
 
                         if overlaps:
@@ -1145,14 +1154,9 @@ class RadarProcessor:
                         second_image = second_radar_images[timestamp]
 
                         # Check if second radar overlaps with primary radar
-                        # Primary radar: (0, 0) to (512, 512)
-                        # Second radar: (offset_x, offset_y) to (offset_x + 512, offset_y + 512)
-                        RADAR_SIZE = 512
-
-                        # Rectangles overlap if they intersect
                         overlaps = (
-                            offset_x < RADAR_SIZE and (offset_x + RADAR_SIZE) > 0 and
-                            offset_y < RADAR_SIZE and (offset_y + RADAR_SIZE) > 0
+                            offset_x < RADAR_IMAGE_SIZE and (offset_x + RADAR_IMAGE_SIZE) > 0 and
+                            offset_y < RADAR_IMAGE_SIZE and (offset_y + RADAR_IMAGE_SIZE) > 0
                         )
 
                         if overlaps:
@@ -1241,6 +1245,7 @@ class RadarProcessor:
                 # Create a dummy filename with the latest timestamp for parsing
                 latest_timestamp = sorted_timestamps[-1]
                 # Determine which radar has this timestamp to get the correct product ID
+                dummy_filename = None
                 if latest_timestamp in primary_radar_images:
                     dummy_filename = f"{product_id}.T.{latest_timestamp}.png"
                 elif latest_timestamp in second_radar_images:
@@ -1248,7 +1253,10 @@ class RadarProcessor:
                 elif latest_timestamp in third_radar_images:
                     dummy_filename = f"{third_radar_product_id}.T.{latest_timestamp}.png"
 
-                timestamp_content = self.parse_timestamp(dummy_filename)
+                if dummy_filename:
+                    timestamp_content = self.parse_timestamp(dummy_filename)
+                else:
+                    logging.warning(f"Latest timestamp {latest_timestamp} not found in any radar image dict")
                 logging.info(f"Using latest timestamp from available radar data: {latest_timestamp}")
 
             # Write timestamp file locally
@@ -1394,15 +1402,28 @@ class RadarProcessor:
 
 async def main():
     """Main application entry point with continuous scheduling"""
-    
+
+    # Graceful shutdown flag — set by SIGTERM handler
+    shutdown_requested = False
+
+    def _request_shutdown():
+        nonlocal shutdown_requested
+        logging.info('Shutdown signal received, finishing current cycle then exiting...')
+        shutdown_requested = True
+
+    # Register SIGTERM handler so Docker/HA supervisor can stop us cleanly.
+    # loop.add_signal_handler() fires inside the event loop (safe for async code).
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGTERM, _request_shutdown)
+
     # Load configuration
     config = Config.load()
     
     # Setup logging
     log_level = config['log_level']
     if log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR']:
-        log_level = 'INFO'
         logging.warning(f"Invalid log level '{log_level}'; using INFO")
+        log_level = 'INFO'
     
     logging.basicConfig(
         level=log_level,
@@ -1428,17 +1449,18 @@ async def main():
     
     # Initialize processor
     processor = RadarProcessor(config)
-    
+    processor.validate_config()
+
     # Run continuously or once
     if config['scheduler_enabled']:
         run_count = 0
-        while True:
+        while not shutdown_requested:
             run_count += 1
             logging.info(f'=== Starting radar image processing (run #{run_count}) ===')
-            
+
             try:
                 success = processor.process_images()
-                
+
                 if success:
                     logging.info('Radar processing completed successfully')
                     sleep_time = config['update_interval']
@@ -1449,24 +1471,29 @@ async def main():
                         logging.info(f'Will retry in {sleep_time} seconds')
                     else:
                         sleep_time = config['update_interval']
-                
+
+                if shutdown_requested:
+                    break
+
                 logging.info(f'Next update in {sleep_time} seconds ({sleep_time/60:.1f} minutes)')
                 await asyncio.sleep(sleep_time)
-                
+
             except KeyboardInterrupt:
-                logging.info('Shutdown requested')
+                logging.info('Shutdown requested via keyboard interrupt')
                 break
             except Exception as e:
                 logging.error(f'Unexpected error in main loop: {e}')
                 import traceback
                 traceback.print_exc()
-                
+
                 if config['retry_on_error']:
                     sleep_time = config['retry_interval']
                     logging.info(f'Retrying in {sleep_time} seconds')
                     await asyncio.sleep(sleep_time)
                 else:
                     break
+
+        logging.info('Main loop exited cleanly')
     else:
         # Run once and exit
         logging.info('Running single processing cycle')

@@ -2,9 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.13] - 2026-02-22
+
+### Fixed
+
+- **Log level warning bug**: The invalid-log-level warning message previously logged `'INFO'` (the replacement value) instead of the original bad value, making it impossible to know what was configured incorrectly. The warning is now emitted before the value is overwritten.
+- **Potential `UnboundLocalError` on `dummy_filename`**: If all three radars lacked an image for the latest timestamp, `dummy_filename` was referenced without ever being assigned, causing a crash. It is now initialised to `None` and guarded before use.
+
+### Changed
+
+- **User-Agent header now uses `VERSION` constant**: The OSM tile User-Agent string was previously hardcoded as `"1.0.12"` and would have drifted on every release. It is now built dynamically from the `VERSION` constant at instance creation time.
+- **Refactored radar download loops**: The three near-identical FTP download blocks (primary, secondary, tertiary) have been extracted into a single `download_radar_frames()` helper method, reducing duplication by ~80 lines.
+- **LRU eviction for OSM tile memory cache**: The `memory_cache` dict previously grew without bound for the lifetime of the process. It now uses a manual LRU strategy capped at 256 tiles (~64 MB), evicting the least-recently-used tile when the limit is reached.
+- **Named constants for magic numbers**: Image dimensions, pixel offsets, and frame counts are now defined as module-level constants (`RADAR_IMAGE_SIZE`, `COPYRIGHT_STRIP_PX`, `TIMESTAMP_STRIP_PX`, `FRAME_COUNT`, `OSM_TILE_SIZE`, `OSM_SUPERSAMPLE_SIZE`) for clarity and single-point maintenance.
+- **Graceful SIGTERM shutdown**: The main async loop now registers a `SIGTERM` handler via `loop.add_signal_handler()`. When the container is stopped by Docker or the HA supervisor, the current processing cycle is allowed to finish before the process exits cleanly.
+
+### Added
+
+- **Input validation on startup**: `RadarProcessor.validate_config()` is called at startup and logs warnings for unknown radar product IDs (not in `radar_metadata.py`) and errors for out-of-range coordinates or invalid timezone strings.
+- **`PyYAML` in `requirements.txt`**: The standalone Docker mode has always required `PyYAML` for `config.yaml` support, but it was missing from the dependency list. It is now declared with a minimum version pin.
+- **Version-pinned dependencies**: `Pillow` and `pytz` now have minimum version constraints to prevent silent breakage on major releases.
+- **`ImportError` guard for `yaml`**: If `PyYAML` is somehow missing, the standalone config path now exits with a clear error message instead of an `ImportError` traceback.
+- **`HEALTHCHECK` in Dockerfile**: The container now reports unhealthy to the Docker/HA supervisor if `radar_status.json` is absent from the output directory, giving operators visibility into a stuck or crashed addon.
+
 ## [1.0.11] - 2025-12-08
 
 ### Added
+
 - **Timestamp Overlay on GIF Frames**: Animated GIFs now display local time in top-left corner
   - Format: "h:mm am/pm" (e.g., "4:23 pm", "12:05 am")
   - Uses primary radar's timestamp converted to local timezone
@@ -13,11 +37,13 @@ All notable changes to this project will be documented in this file.
   - Applied only to GIF frames (PNG frames remain clean)
 
 ### Changed
+
 - Removed progress bar in favor of timestamp display
   - Timestamps provide more useful temporal context than progress indicator
   - Users can see exact time of each radar observation
 
 ### Technical
+
 - Added `add_timestamp_overlay()` method for rendering timestamps
 - Imported ImageFont for text rendering with DejaVu Sans Bold
 - Added self.timestamps list to track timestamps alongside frames
@@ -27,6 +53,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.10] - 2025-12-07
 
 ### Added
+
 - **Compact Legend Bar**: Replaced large 512x557 legend with compact 492x8 color scale bar
   - New radar-colour-bar.png provides cleaner, more space-efficient legend
   - Legend centered at bottom with white background
@@ -40,6 +67,7 @@ All notable changes to this project will be documented in this file.
   - Helps users see which frame is displayed when radar conditions are similar
 
 ### Changed
+
 - Refactored image composition pipeline for new legend system
   - Base images now created at 512x512 (no longer use legend as starting base)
   - New `add_legend_bar()` method extends frames to 512x520 with legend
@@ -47,6 +75,7 @@ All notable changes to this project will be documented in this file.
   - Simplified both BoM and OpenStreetMap background creation
 
 ### Technical
+
 - Added `add_frame_indicator()` method to draw progress bar on GIF frames
 - Added `add_legend_bar()` method to append compact legend to all frames
 - Imported ImageDraw from PIL for drawing operations
@@ -56,6 +85,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.8] - 2025-12-07
 
 ### Added
+
 - **Radar Status File**: Automatically generates `radar_status.json` with detailed radar availability information
   - Overall status indicator: "online", "partial", or "offline"
   - Flattened JSON structure for easy Home Assistant sensor creation
@@ -66,6 +96,7 @@ All notable changes to this project will be documented in this file.
   - Documented in DOCS.md with example JSON structure, Home Assistant sensor examples, and use cases
 
 ### Changed
+
 - Updated documentation (README.md and DOCS.md) to include radar status file information
 - Status file uses flattened structure (e.g., `primary_online`, `secondary_enabled`) instead of nested objects for simpler sensor configuration
 - Status file provides real-time visibility into radar availability for all configured radars
@@ -73,6 +104,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.7] - 2025-12-07
 
 ### Fixed
+
 - **Offline Radar Handling**: Addon now gracefully handles situations where one or more radars are offline
   - Implements timestamp-based alignment across all radar sources (primary, secondary, tertiary)
   - Creates frames using available radar data even when primary radar is offline
@@ -81,6 +113,7 @@ All notable changes to this project will be documented in this file.
   - System continues to function as long as at least one radar source has data
 
 ### Changed
+
 - Radar images are now downloaded into timestamp-keyed dictionaries for better alignment
 - Frame generation uses unified timeline from all available radars
 - Timestamp file now uses latest timestamp from any available radar (not just primary)
@@ -88,6 +121,7 @@ All notable changes to this project will be documented in this file.
 - Partial data availability is clearly logged with warnings for specific timestamps
 
 ### Technical
+
 - Refactored radar download logic to support timestamp alignment
 - Replaced array-based processing with dictionary-based approach keyed by timestamps
 - Collects unique timestamps from all radars and processes most recent 5
@@ -96,22 +130,25 @@ All notable changes to this project will be documented in this file.
 ## [1.0.6] - 2025-12-05
 
 ### Added
+
 - **OpenStreetMap Background Support**: New option to use OpenStreetMap as radar background instead of BoM backgrounds
-  - Higher resolution backgrounds (1024×1024 downsampled to 512×512 for improved clarity)
+  - Higher resolution backgrounds (1024x1024 downsampled to 512x512 for improved clarity)
   - Automatic zoom level optimization based on radar range (512km/256km/128km/64km)
   - Persistent tile caching with 30-day expiry for fast subsequent runs
   - Automatic fallback to BoM backgrounds if tile download fails
 - New `background_type` configuration option with choices: "bom" (default) or "openstreetmap"
-- MapTileProvider class for efficient tile fetching and caching
+- `MapTileProvider` class for efficient tile fetching and caching
 - Tile cache directory created automatically in output path (`tile_cache/`)
 
 ### Changed
+
 - Refactored base image creation into separate methods for better code organization
 - Split `create_base_image()` into `create_bom_base_image()` and OpenStreetMap logic
 - Both PNG frames and GIF now use the selected background type
 - BoM layer options (catchments, topography, locations, range) only apply when using BoM backgrounds
 
 ### Technical
+
 - Added `urllib.request` and `urllib.error` for tile downloads (no new dependencies, stdlib only)
 - Implemented Web Mercator projection calculations for lat/lon to tile coordinate conversion
 - Added automatic tile stitching and sub-tile precision centering
@@ -120,12 +157,14 @@ All notable changes to this project will be documented in this file.
 ## [1.0.5] - 2025-12-05
 
 ### Fixed
-- Removed broken http://www.bom.gov.au/australia/radar/ URL references
+
+- Removed broken BOM radar URL references
 - Fixed RADARS.md links to use full GitHub URLs for external access
-- RADARS.md links now open in new browser tab/window (using target="_blank")
+- RADARS.md links now open in new browser tab/window (using target="\_blank")
 - Documentation now correctly directs users to RADARS.md and Quick Reference table
 
 ### Changed
+
 - Updated DOCS.md with comprehensive Home Assistant setup instructions
 - Added detailed Local File camera integration setup steps
 - Added Picture Entity card configuration examples for dashboard
@@ -133,34 +172,40 @@ All notable changes to this project will be documented in this file.
 - Improved guidance for finding radar product IDs
 
 ### Added
+
 - GitHub issue templates for bug reports and feature requests
 - Standardized issue reporting with configuration and log sections
 - Feature request template for community enhancements
 
 ### Removed
-- Cleaned up temporary __pycache__ directory
+
+- Cleaned up temporary **pycache** directory
 
 ## [1.0.4] - 2025-12-05
 
 ### Changed
+
 - Replaced layers array with individual boolean toggles for better UI experience
 - Background layer is now always included (not user-editable)
 - Added support for up to 4 layers: background (always on), catchments, topography, locations, and range
 - Each optional layer can now be toggled independently via checkboxes in the UI
 
 ### Fixed
+
 - Layer configuration now provides a clearer, more intuitive interface
 - Users can easily select which radar layers to display without editing arrays
 
 ## [1.0.3] - 2025-12-05
 
 ### Fixed
+
 - Simplified layers schema to use ["str"] format for proper multi-select support
 - Fixed "does not match regular expression" error when saving configuration
 
 ## [1.0.2] - 2025-12-05
 
 ### Fixed
+
 - Fixed config.json schema to use correct Home Assistant format
 - Layers configuration now properly supports multi-select checkboxes using match() patterns
 - Default selections for "background" and "locations" layers maintained
@@ -168,11 +213,13 @@ All notable changes to this project will be documented in this file.
 ## [1.0.1] - 2025-12-05
 
 ### Changed
+
 - Fixed layers configuration to support multi-select checkboxes instead of radio buttons (incorrect format - fixed in 1.0.2)
 
 ## [1.0.0] - 2025-01-04
 
 ### Added
+
 - Initial release as Home Assistant addon
 - Support for Australian BoM radar downloads
 - Animated GIF creation with configurable frame rates
@@ -187,6 +234,7 @@ All notable changes to this project will be documented in this file.
 - Multi-architecture support (amd64, aarch64, armhf, armv7, i386)
 
 ### Features
+
 - Downloads latest 5 radar frames from BoM FTP server
 - Creates smooth animated radar loops
 - Saves individual PNG images for AI analysis
@@ -196,6 +244,7 @@ All notable changes to this project will be documented in this file.
 - Backward compatibility with standalone Docker mode
 
 ### Documentation
+
 - Complete installation guide
 - Configuration examples
 - Troubleshooting section
