@@ -10,7 +10,8 @@ import signal
 import time
 import urllib.request
 import urllib.error
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 import pytz
@@ -38,9 +39,6 @@ class MapTileProvider:
     # OpenStreetMap tile server URL
     OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
-    # User-Agent required by OSM tile usage policy (set dynamically in __init__ using VERSION)
-    USER_AGENT = None
-
     # Cache expiry: 30 days (map tiles rarely change)
     CACHE_EXPIRY_SECONDS = 30 * 24 * 3600
 
@@ -52,11 +50,8 @@ class MapTileProvider:
             cache_dir: Directory path for persistent tile cache
         """
         self.cache_dir = Path(cache_dir)
-        # LRU cache capped at 256 tiles (~64 MB) to prevent unbounded memory growth
-        self._tile_cache_order = []
         self._tile_cache_max = 256
-        self.memory_cache = {}  # Session LRU cache for faster access
-        # Set User-Agent using the module-level VERSION constant
+        self._memory_cache = OrderedDict()  # LRU cache capped at 256 tiles (~64 MB)
         self.USER_AGENT = f"HomeAssistant-BoM-Radar-Addon/{VERSION} (https://github.com/safepay/ha-bom-radar-loop-addon)"
 
         # Create cache directory if it doesn't exist
@@ -66,14 +61,12 @@ class MapTileProvider:
 
     def _lru_insert(self, key, value):
         """Insert a tile into the LRU memory cache, evicting the oldest if full."""
-        if key in self.memory_cache:
-            self._tile_cache_order.remove(key)
-        elif len(self.memory_cache) >= self._tile_cache_max:
-            oldest = self._tile_cache_order.pop(0)
-            del self.memory_cache[oldest]
+        if key in self._memory_cache:
+            self._memory_cache.move_to_end(key)
+        elif len(self._memory_cache) >= self._tile_cache_max:
+            oldest, _ = self._memory_cache.popitem(last=False)
             logging.debug(f"LRU evicted tile {oldest} from memory cache")
-        self.memory_cache[key] = value
-        self._tile_cache_order.append(key)
+        self._memory_cache[key] = value
 
     @staticmethod
     def latlon_to_tile(lat, lon, zoom):
@@ -125,19 +118,15 @@ class MapTileProvider:
         Returns:
             PIL Image object (256x256 pixels)
         """
-        # Check memory cache first (LRU: move to end on hit)
         cache_key = f"{z}/{x}/{y}"
-        if cache_key in self.memory_cache:
+        if cache_key in self._memory_cache:  # LRU: move to end on hit
             logging.debug(f"Tile {cache_key} loaded from memory cache")
-            self._tile_cache_order.remove(cache_key)
-            self._tile_cache_order.append(cache_key)
-            return self.memory_cache[cache_key]
+            self._memory_cache.move_to_end(cache_key)
+            return self._memory_cache[cache_key]
 
-        # Check disk cache
         cache_path = self.cache_dir / str(z) / str(x) / f"{y}.png"
 
         if cache_path.exists():
-            # Check if cache is still valid (not expired)
             cache_age = time.time() - cache_path.stat().st_mtime
             if cache_age < self.CACHE_EXPIRY_SECONDS:
                 logging.debug(f"Tile {cache_key} loaded from disk cache (age: {cache_age/86400:.1f} days)")
@@ -147,7 +136,6 @@ class MapTileProvider:
             else:
                 logging.debug(f"Tile {cache_key} cache expired, re-downloading")
 
-        # Download tile
         url = self.OSM_TILE_URL.format(z=z, x=x, y=y)
         logging.info(f"Downloading tile: {cache_key}")
 
@@ -157,22 +145,15 @@ class MapTileProvider:
                 tile_data = response.read()
                 tile = Image.open(io.BytesIO(tile_data)).convert('RGBA')
 
-            # Save to disk cache
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             tile.save(cache_path, 'PNG')
             logging.debug(f"Tile {cache_key} saved to disk cache")
-
-            # Save to LRU memory cache
             self._lru_insert(cache_key, tile)
 
             return tile
 
-        except (urllib.error.URLError, urllib.error.HTTPError) as e:
-            logging.error(f"Failed to download tile {cache_key}: {e}")
-            # Return a blank tile as fallback
-            return Image.new('RGBA', (256, 256), (200, 200, 200, 255))
         except Exception as e:
-            logging.error(f"Unexpected error downloading tile {cache_key}: {e}")
+            logging.error(f"Failed to download tile {cache_key}: {e}")
             return Image.new('RGBA', (256, 256), (200, 200, 200, 255))
 
     def create_background(self, lat, lon, zoom, size=1024):
@@ -693,14 +674,11 @@ class RadarProcessor:
         Returns:
             tuple: (latitude, longitude, km_per_pixel)
         """
-        # Default values if product ID not found
-        default_metadata = (0, 0, 1.0)
-
-        metadata = RADAR_METADATA.get(product_id, default_metadata)
-        if product_id not in RADAR_METADATA:
+        metadata = RADAR_METADATA.get(product_id)
+        if metadata is None:
             logging.warning(f"Radar metadata not found for {product_id}. Using defaults. "
                           f"House marker may not be accurately positioned.")
-
+            return (0, 0, 1.0)
         return metadata
 
     def latlon_to_pixel(self, lat, lon, radar_lat, radar_lon, km_per_pixel, image_size):
@@ -786,24 +764,11 @@ class RadarProcessor:
         return frame
 
     def remove_copyright(self, image):
-        """Remove top 16px copyright notice from radar image by making it transparent
-
-        Args:
-            image: PIL Image object in RGBA mode
-
-        Returns:
-            PIL Image with top 16px replaced with transparent pixels
-        """
+        """Remove top copyright strip from radar image by making it transparent"""
         img = image.copy()
-        width, height = img.size
-
-        # Create a transparent strip for the top copyright pixels
-        pixels = img.load()
-        for y in range(min(COPYRIGHT_STRIP_PX, height)):
-            for x in range(width):
-                pixels[x, y] = (0, 0, 0, 0)  # Fully transparent
-
-        logging.debug(f"Removed copyright (top 16px) from image {img.size}")
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([0, 0, img.width - 1, COPYRIGHT_STRIP_PX - 1], fill=(0, 0, 0, 0))
+        logging.debug(f"Removed copyright (top {COPYRIGHT_STRIP_PX}px) from image {img.size}")
         return img
 
     def make_timestamp_transparent(self, image):
@@ -896,12 +861,7 @@ class RadarProcessor:
             local_tz = pytz.timezone(self.config['timezone'])
             dt_local = dt_utc.astimezone(local_tz)
 
-            # Format time as "h:mm am/pm" (no leading zero for hour)
-            hour = dt_local.hour % 12
-            if hour == 0:
-                hour = 12
-            am_pm = "am" if dt_local.hour < 12 else "pm"
-            time_str = f"{hour}:{dt_local.minute:02d} {am_pm}"
+            time_str = dt_local.strftime('%I:%M %p').lstrip('0').lower()
 
             # Try to use a nice font, fall back to default if not available
             try:
@@ -987,11 +947,12 @@ class RadarProcessor:
 
         return (offset_x, offset_y)
 
-    def download_radar_frames(self, ftp, product_id, label, images_out):
+    def download_radar_frames(self, ftp, ftp_files, product_id, label, images_out):
         """Download the most recent radar frames for a single radar product.
 
         Args:
             ftp: Active ftplib.FTP connection, already cwd'd to /anon/gen/radar/
+            ftp_files: Pre-fetched directory listing from ftp.nlst()
             product_id: BOM product ID string (e.g. 'IDR022')
             label: Human-readable label for log messages ('primary', 'second', 'third')
             images_out: Dict to populate with {timestamp: PIL.Image} entries
@@ -999,7 +960,7 @@ class RadarProcessor:
         Returns:
             bool: True if any frames were downloaded, False if radar offline
         """
-        all_files = [f for f in ftp.nlst()
+        all_files = [f for f in ftp_files
                      if f.startswith(product_id) and f.endswith('.png')]
         sorted_files = sorted(all_files, key=self.get_timestamp)
         files = sorted_files[-FRAME_COUNT:]
@@ -1039,31 +1000,20 @@ class RadarProcessor:
     def parse_timestamp(self, filename):
         """Parse timestamp from BOM radar filename"""
         try:
-            parts = filename.split('.')
-            if len(parts) >= 3:
-                datetime_str = parts[2]  # YYYYMMDDHHmm format
-                
-                # Parse the datetime (BOM times are in UTC)
-                dt_utc = datetime.strptime(datetime_str, "%Y%m%d%H%M")
-                dt_utc = pytz.utc.localize(dt_utc)
-                
-                # Convert to local timezone
-                local_tz = pytz.timezone(self.config['timezone'])
-                dt_local = dt_utc.astimezone(local_tz)
-                
-                # Format both UTC and local times
-                utc_time = dt_utc.strftime("%Y-%m-%d %H:%M UTC")
-                local_time = dt_local.strftime("%Y-%m-%d %H:%M %Z")
-                
-                timestamp_content = f"UTC Time: {utc_time}; Local Time ({self.config['timezone']}): {local_time}\n"
-                
-                logging.info(f"Last radar image - UTC: {utc_time}, Local: {local_time}")
-                return timestamp_content
+            datetime_str = self.get_timestamp(filename)
+            if datetime_str == filename:
+                return f"Last file: {filename}\nError: could not extract timestamp\n"
+            dt_utc = datetime.strptime(datetime_str, "%Y%m%d%H%M")
+            dt_utc = pytz.utc.localize(dt_utc)
+            local_tz = pytz.timezone(self.config['timezone'])
+            dt_local = dt_utc.astimezone(local_tz)
+            utc_time = dt_utc.strftime("%Y-%m-%d %H:%M UTC")
+            local_time = dt_local.strftime("%Y-%m-%d %H:%M %Z")
+            logging.info(f"Last radar image - UTC: {utc_time}, Local: {local_time}")
+            return f"UTC Time: {utc_time}; Local Time ({self.config['timezone']}): {local_time}\n"
         except Exception as e:
             logging.error(f"Error parsing timestamp from {filename}: {e}")
             return f"Last file: {filename}\nError parsing timestamp: {e}\n"
-        
-        return None
     
     def process_images(self):
         """Main processing function"""
@@ -1107,13 +1057,14 @@ class RadarProcessor:
             second_radar_images = {}
             third_radar_images = {}
 
-            self.download_radar_frames(ftp, product_id, 'primary', primary_radar_images)
+            ftp_files = ftp.nlst()
+            self.download_radar_frames(ftp, ftp_files, product_id, 'primary', primary_radar_images)
 
             # Download second radar images if enabled
             offset_x, offset_y = 0, 0
             if second_radar_enabled and second_radar_product_id:
                 logging.info(f"Second radar enabled: {second_radar_product_id}")
-                if self.download_radar_frames(ftp, second_radar_product_id, 'second', second_radar_images):
+                if self.download_radar_frames(ftp, ftp_files, second_radar_product_id, 'second', second_radar_images):
                     offset_x, offset_y = self.calculate_radar_offset(product_id, second_radar_product_id)
                     logging.info(f"Second radar will be offset by ({offset_x}, {offset_y}) pixels")
 
@@ -1121,7 +1072,7 @@ class RadarProcessor:
             third_offset_x, third_offset_y = 0, 0
             if third_radar_enabled and third_radar_product_id:
                 logging.info(f"Third radar enabled: {third_radar_product_id}")
-                if self.download_radar_frames(ftp, third_radar_product_id, 'third', third_radar_images):
+                if self.download_radar_frames(ftp, ftp_files, third_radar_product_id, 'third', third_radar_images):
                     third_offset_x, third_offset_y = self.calculate_radar_offset(product_id, third_radar_product_id)
                     logging.info(f"Third radar will be offset by ({third_offset_x}, {third_offset_y}) pixels")
 
@@ -1429,7 +1380,7 @@ class RadarProcessor:
             try:
                 import smbclient
                 smbclient.reset_connection_cache()
-            except:
+            except Exception:
                 pass
 
 
@@ -1455,15 +1406,17 @@ async def main():
     # Setup logging
     log_level = config['log_level']
     if log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR']:
-        logging.warning(f"Invalid log level '{log_level}'; using INFO")
         log_level = 'INFO'
-    
+
     logging.basicConfig(
         level=log_level,
         format='%(asctime)s %(levelname)s: %(message)s',
         stream=sys.stdout,
         force=True
     )
+
+    if config['log_level'] not in ['DEBUG', 'INFO', 'WARNING', 'ERROR']:
+        logging.warning(f"Invalid log level '{config['log_level']}'; using INFO")
     
     # Make stdout unbuffered
     sys.stdout.reconfigure(line_buffering=True)
