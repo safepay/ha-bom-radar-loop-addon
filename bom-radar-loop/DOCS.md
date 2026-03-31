@@ -121,12 +121,17 @@ Overlay additional radars for extended coverage:
 
 ```yaml
 second_radar_enabled: true
-second_radar_product_id: IDR022
-third_radar_enabled: false
-third_radar_product_id: IDR023
+second_radar_product_id: IDR953
+third_radar_enabled: true
+third_radar_product_id: IDR683
 ```
 
 The radars will be layered with your primary radar on top, second radar in the middle, and third radar on the bottom. They are automatically positioned based on their geographic locations.
+
+**Important rules for secondary and tertiary radars:**
+
+- **Same range as primary**: Secondary and tertiary product IDs must use the same range as your primary radar. For example, if your primary ends in `3` (128km), all additional radars must also end in `3`.
+- **Different station**: Secondary and tertiary radars must be from a different physical station than the primary, and from each other. You cannot use a different range of the same station (e.g. `IDR023` and `IDR022` are both Melbourne — only one can be used).
 
 ## Using Radar Images in Home Assistant
 

@@ -90,10 +90,11 @@ BoM layers (only with BoM background): locations, catchments, topography, range
 
 ### Optional Features
 
-**Multiple Radars**:
+**Multiple Radars** (must be same range as primary, different station):
+
 ```yaml
 second_radar_enabled: true
-second_radar_product_id: IDR023
+second_radar_product_id: IDR953
 ```
 
 **Home Marker** (shows on GIF only):

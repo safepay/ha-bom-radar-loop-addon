@@ -438,6 +438,12 @@ class RadarProcessor:
         coordinate ranges. Logs warnings for unknown IDs (new radars added
         to BOM may not yet be in the local metadata) and errors for
         obviously-invalid coordinate values.
+
+        Also validates secondary/tertiary radar compatibility:
+        - Secondary and tertiary radars must use the same range as the primary
+          (last digit of product ID must match).
+        - Secondary and tertiary radars must be from a different physical station
+          than the primary, and from each other (station prefix must differ).
         """
         issues = []
 
@@ -450,15 +456,42 @@ class RadarProcessor:
             )
 
         # Validate optional secondary/tertiary product IDs
-        for label, key in [('second', 'second_radar_product_id'), ('third', 'third_radar_product_id')]:
-            enabled_key = f'{label}_radar_enabled'
-            if self.config.get(enabled_key) and self.config.get(key):
+        primary_range = pid[-1]
+        primary_prefix = pid[:-1]
+        enabled_secondaries = []
+        for label, key in [('Second', 'second_radar_product_id'), ('Third', 'third_radar_product_id')]:
+            if self.config.get(f'{label.lower()}_radar_enabled') and self.config.get(key):
                 sid = self.config[key]
                 if sid not in RADAR_METADATA:
                     logging.warning(
-                        f"{label.capitalize()} radar product ID '{sid}' not found in "
+                        f"{label} radar product ID '{sid}' not found in "
                         "radar_metadata.py. Radar offset calculation may be inaccurate."
                     )
+                sid_range = sid[-1]
+                sid_prefix = sid[:-1]
+                if sid_range != primary_range:
+                    issues.append(
+                        f"{label} radar '{sid}' has range digit '{sid_range}' but primary "
+                        f"radar '{pid}' has range digit '{primary_range}'. Secondary and "
+                        f"tertiary radars must use the same range as the primary."
+                    )
+                if sid_prefix == primary_prefix:
+                    issues.append(
+                        f"{label} radar '{sid}' shares station prefix '{sid_prefix}' with "
+                        f"primary radar '{pid}'. Secondary and tertiary radars must be "
+                        f"different stations from the primary."
+                    )
+                enabled_secondaries.append((label, sid, sid_prefix))
+
+        if len(enabled_secondaries) == 2:
+            _, sid_a, prefix_a = enabled_secondaries[0]
+            _, sid_b, prefix_b = enabled_secondaries[1]
+            if prefix_a == prefix_b:
+                issues.append(
+                    f"Second radar '{sid_a}' and third radar '{sid_b}' share the same "
+                    f"station prefix '{prefix_a}'. Secondary and tertiary radars must "
+                    f"be different stations from each other."
+                )
 
         # Validate residential coordinates
         if self.config.get('residential_enabled'):

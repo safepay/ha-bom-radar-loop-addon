@@ -166,12 +166,18 @@ If you're not near a major city:
 
 You can overlay multiple radars to see a wider area. For example:
 
-**Melbourne + Geelong coverage:**
+**Melbourne area — extended coverage:**
+
 - Primary: IDR023 (Melbourne 128km)
 - Second: IDR953 (Rainbow 128km) - extends coverage west
 - Third: IDR683 (Bairnsdale 128km) - extends coverage east
 
 The addon automatically positions radars based on their geographic locations.
+
+**Rules for combining radars:**
+
+- All radars must use the **same range** (e.g. all 128km, all 256km). Mixing ranges is not supported and will be flagged as a configuration error on startup.
+- Secondary and tertiary radars must be from **different stations** than the primary, and from each other. You cannot use two product IDs from the same physical station (e.g. `IDR023` and `IDR024` are both Melbourne — only one can be used).
 
 ---
 
