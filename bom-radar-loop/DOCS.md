@@ -253,7 +253,7 @@ sensor:
 
 ## Finding Your Radar Product ID
 
-**See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** for a comprehensive list of all Australian radar locations organized by state.
+**See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** for a comprehensive list of all Australian radar locations organized by state.
 
 ### Quick Reference - Major Cities
 
@@ -270,7 +270,7 @@ sensor:
 
 Each radar location has multiple product IDs for different coverage ranges (64km, 128km, 256km, 512km). The 128km range is recommended for most users as it provides a good balance of coverage and detail.
 
-For a complete list of all radars organized by state/territory, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>.
+For a complete list of all radars organized by state/territory, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">RADARS.md</a>.
 
 ## Troubleshooting
 
