@@ -41,7 +41,7 @@ output_path: www/bom_radar
 
 - **radar_product_id**: Your BoM radar product ID (e.g., IDR022 for Melbourne, IDR023 for Geelong)
   - See the **Quick Reference** table below for major cities
-  - For all radars by state, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md" target="_blank">RADARS.md</a>
+  - For all radars by state, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">RADARS.md</a>
 - **timezone**: Your local timezone (e.g., Australia/Melbourne, Australia/Sydney)
 - **update_interval**: Seconds between radar updates (600 = 10 minutes, minimum 60)
 - **output_path**: Path relative to /config where images will be saved (default: www/bom_radar)
