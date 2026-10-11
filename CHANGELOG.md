@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Dropped deprecated 32-bit architectures** (`armhf`, `armv7`, `i386`) from `config.json` and `build.json`. Home Assistant removed support for them in 2025.12, and the add-on linter flags them. Only `aarch64` and `amd64` remain.
+
+## [1.0.18] - 2026-10-12
+
 ### Fixed
 
 - **Base map tiles blocked in dashboards**: OpenStreetMap's volunteer tile servers return HTTP 403 "Access blocked" for embedded/app use under their tile usage policy, so the radar card's base map failed to load. The card now defaults to keyless, embedding-permitted Esri ArcGIS tiles (`esri`/`esri_topo`/`esri_gray`/`satellite`); `osm` and Carto remain selectable via `base_map` but may be blocked or need a key. Retina double-requests are also disabled to keep tile volume down.
