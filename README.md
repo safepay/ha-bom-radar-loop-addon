@@ -24,7 +24,7 @@ Animated radar loops and individual radar frames from Australian Bureau of Meteo
 2. **Install** "Australian BoM Radar Loop" from the addon store
 
 3. **Configure** in the Configuration tab:
-   - Set your `radar_product_id` (see [Quick Reference](#quick-reference) or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/RADARS.md))
+   - Set your `radar_product_id` (see [Quick Reference](#quick-reference) or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md))
    - Set your `timezone` (e.g., `Australia/Melbourne`)
 
 4. **Start** the addon (enable "Start on boot" recommended)
