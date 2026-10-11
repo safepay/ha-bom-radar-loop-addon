@@ -207,6 +207,63 @@ class BomRadarCard extends HTMLElement {
         background: var(--primary-color, #03a9f4); border: 2px solid #fff;
         transform: rotate(-45deg); box-shadow: 0 0 4px rgba(0,0,0,.5);
       }
+
+      /* --- Critical Leaflet layout, scoped to this card. Home Assistant
+         renders cards inside shadow DOM, so Leaflet's own stylesheet (loaded
+         into document.head) does not reach the map - without these rules the
+         tiles have no positioning and scatter/drift when you pan. --- */
+      .bom-radar-map { overflow: hidden; background: #a0d6f5; font-family: inherit; }
+      .bom-radar-map .leaflet-pane,
+      .bom-radar-map .leaflet-tile,
+      .bom-radar-map .leaflet-marker-icon,
+      .bom-radar-map .leaflet-marker-shadow,
+      .bom-radar-map .leaflet-tile-container,
+      .bom-radar-map .leaflet-pane > svg,
+      .bom-radar-map .leaflet-pane > canvas,
+      .bom-radar-map .leaflet-zoom-box,
+      .bom-radar-map .leaflet-image-layer,
+      .bom-radar-map .leaflet-layer { position: absolute; left: 0; top: 0; }
+      .bom-radar-map .leaflet-tile { width: 256px; height: 256px; filter: inherit;
+        visibility: hidden; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+      .bom-radar-map .leaflet-tile-loaded { visibility: inherit; }
+      .bom-radar-map .leaflet-tile,
+      .bom-radar-map .leaflet-image-layer { max-width: none !important; max-height: none !important; }
+      .bom-radar-map .leaflet-pane { z-index: 400; }
+      .bom-radar-map .leaflet-tile-pane { z-index: 200; }
+      .bom-radar-map .leaflet-overlay-pane { z-index: 400; }
+      .bom-radar-map .leaflet-shadow-pane { z-index: 500; }
+      .bom-radar-map .leaflet-marker-pane { z-index: 600; }
+      .bom-radar-map .leaflet-tooltip-pane { z-index: 650; }
+      .bom-radar-map .leaflet-popup-pane { z-index: 700; }
+      .bom-radar-map .leaflet-map-pane canvas { z-index: 100; }
+      .bom-radar-map .leaflet-map-pane svg { z-index: 200; }
+      .bom-radar-map .leaflet-overlay-pane svg { max-width: none !important; max-height: none !important; }
+      .bom-radar-map .leaflet-zoom-animated { transform-origin: 0 0; }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-zoom-animated {
+        transition: transform .25s cubic-bezier(0,0,.25,1); }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-tile,
+      .bom-radar-map .leaflet-pan-anim .leaflet-tile { transition: none; }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-zoom-hide { visibility: hidden; }
+      .bom-radar-map .leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
+      .bom-radar-map .leaflet-top, .bom-radar-map .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+      .bom-radar-map .leaflet-top { top: 0; }
+      .bom-radar-map .leaflet-bottom { bottom: 0; }
+      .bom-radar-map .leaflet-left { left: 0; }
+      .bom-radar-map .leaflet-right { right: 0; }
+      .bom-radar-map .leaflet-right .leaflet-control { float: right; margin-right: 10px; }
+      .bom-radar-map .leaflet-left .leaflet-control { margin-left: 10px; }
+      .bom-radar-map .leaflet-top .leaflet-control { margin-top: 10px; }
+      .bom-radar-map .leaflet-bottom .leaflet-control { margin-bottom: 10px; }
+      .bom-radar-map .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,.4); border-radius: 4px; }
+      .bom-radar-map .leaflet-bar a { background: #fff; border-bottom: 1px solid #ccc;
+        width: 26px; height: 26px; line-height: 26px; display: block; text-align: center;
+        text-decoration: none; color: #000; font: bold 18px 'Lucida Console', Monaco, monospace; }
+      .bom-radar-map .leaflet-bar a:hover { background: #f4f4f4; }
+      .bom-radar-map .leaflet-bar a:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+      .bom-radar-map .leaflet-bar a:last-child { border-bottom: none; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+      .bom-radar-map .leaflet-control-attribution { background: rgba(255,255,255,.7); margin: 0; padding: 0 5px;
+        color: #333; font: 11px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif; }
+      .bom-radar-map .leaflet-control-attribution a { color: #0078A8; text-decoration: none; }
     `;
 
     content.appendChild(mapEl);
