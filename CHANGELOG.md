@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **Dropped deprecated 32-bit architectures** (`armhf`, `armv7`, `i386`) from `config.json` and `build.json`. Home Assistant removed support for them in 2025.12, and the add-on linter flags them. Only `aarch64` and `amd64` remain.
+- **Rewrote and simplified the documentation**: `DOCS.md` now leads with the interactive card, covers `map_detail` and the card options, and trims the outdated/verbose sections; the `README.md` is a concise landing page that points to `DOCS.md` (and its broken `DOCS.md`/`RADARS.md`/`DOCKER.md` links are fixed).
 
 ## [1.0.18] - 2026-10-12
 
