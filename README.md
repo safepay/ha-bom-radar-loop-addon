@@ -58,7 +58,7 @@ Full list by state: [RADARS.md](bom-radar-loop/RADARS.md).
 
 - **Full documentation** (config, card options, usage, troubleshooting): [DOCS.md](bom-radar-loop/DOCS.md)
 - **All radars by state**: [RADARS.md](bom-radar-loop/RADARS.md)
-- **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+- **Changelog**: [CHANGELOG.md](bom-radar-loop/CHANGELOG.md)
 
 ## Support
 
