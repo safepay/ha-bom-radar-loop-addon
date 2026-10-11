@@ -55,6 +55,36 @@ show_state: false
 
 **Why?** Simple picture cards cache images and won't update. Local File camera + Picture Entity ensures proper refreshing.
 
+### Interactive Radar Map (recommended)
+
+As well as the GIF, the addon writes transparent, georeferenced radar frames plus a `radar_manifest.json`, and ships a custom Lovelace card (`bom-radar-card.js`) that renders them on a **real pannable/zoomable map** with a play/pause/scrub timeline - instead of a fixed loop you can move around the map covered by your chosen radars.
+
+1. **Register the card as a resource** (the addon has already copied it into `/config/www/bom_radar/`):
+   - Settings → Dashboards → ⋮ → Resources → Add Resource
+   - URL: `/local/bom_radar/bom-radar-card.js`
+   - Type: **JavaScript Module**
+
+2. **Add the card** to a dashboard:
+
+```yaml
+type: custom:bom-radar-card
+title: BoM Radar
+# All options below are optional:
+height: "420px"
+default_zoom: 8          # omit to fit all radar coverage; set to open zoomed on home
+default_center: home     # "home" (uses your HA location) or "radars"
+show_home: true          # home marker, from your Home Assistant location
+base_map: osm            # osm | voyager | light | dark  (voyager/light/dark need a Carto key)
+```
+
+> Which radars and how many zoom ranges are downloaded is set in the **addon** configuration (`map_detail` and the radar options), not on the card.
+
+How it behaves:
+
+- **Zoom in** and the card automatically switches to the finer radar ranges around your home; **zoom out** for the wider-range picture.
+- **Rural homes** outside the small radii fall back to the widest range that still reaches them.
+- The home marker uses your **Home Assistant** location automatically (no need to set coordinates just for the map).
+
 ### LLM Vision Analysis
 
 Individual radar frames are perfect for AI analysis:
@@ -78,8 +108,11 @@ Five frames available: `image_1.png` (oldest) to `image_5.png` (newest). Use wit
 radar_product_id: IDR022      # Your radar (see Quick Reference below)
 timezone: Australia/Melbourne
 update_interval: 600          # Seconds (10 minutes)
-background_type: bom          # "bom" or "openstreetmap"
+background_type: bom          # "bom" or "openstreetmap" (GIF only)
+map_detail: standard          # Interactive card: minimal | standard | high
 ```
+
+- `map_detail`: how many ranges the interactive card can zoom through - `standard` = 512/256/128km, `high` also fetches 64km (more data each update), `minimal` keeps a single range.
 
 ### Background Options
 

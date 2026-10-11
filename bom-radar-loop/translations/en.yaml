@@ -1,0 +1,83 @@
+configuration:
+  radar_product_id:
+    name: Primary radar
+    description: >-
+      BOM product ID for your main radar, e.g. IDR022 (Melbourne 256km). The
+      last digit is the range: 1=512km, 2=256km, 3=128km, 4=64km. See RADARS.md
+      for the full list. The interactive map centres here.
+  timezone:
+    name: Timezone
+    description: >-
+      Your local timezone (e.g. Australia/Melbourne). Used for the timestamps
+      shown on the loop and the interactive card.
+  update_interval:
+    name: Update interval (seconds)
+    description: >-
+      How often to fetch new radar images, in seconds (60-3600). BOM updates
+      most radars every 6-10 minutes, so 600 (10 min) is a good default.
+  output_path:
+    name: Output folder
+    description: >-
+      Folder under /config to write images into (default www/bom_radar).
+      Files are then served by Home Assistant at /local/<folder>/.
+  background_type:
+    name: Loop background
+    description: >-
+      Background for the animated GIF only: "bom" (official BoM layers) or
+      "openstreetmap" (street map). The interactive card always uses its own
+      live map, so this does not affect it.
+  map_detail:
+    name: Interactive map detail
+    description: >-
+      How many zoom levels to download per radar for the interactive card.
+      "minimal" = just your chosen range; "standard" = 512+256+128km (good
+      balance, default); "high" = also 64km for close-in suburb detail (more
+      data each update).
+  layer_catchments:
+    name: 'BoM layer: catchments'
+    description: Show river catchment boundaries on the GIF (BoM background only).
+  layer_topography:
+    name: 'BoM layer: topography'
+    description: Show terrain/elevation shading on the GIF (BoM background only).
+  layer_locations:
+    name: 'BoM layer: locations'
+    description: Show town and city names on the GIF (BoM background only).
+  layer_range:
+    name: 'BoM layer: range rings'
+    description: Show radar range rings on the GIF (BoM background only).
+  gif_duration:
+    name: GIF frame duration (ms)
+    description: How long each animation frame is shown, in milliseconds (100-2000).
+  gif_last_frame_duration:
+    name: GIF last-frame pause (ms)
+    description: >-
+      Extra pause on the final (most recent) frame, in milliseconds
+      (100-5000), so the latest image is easier to read.
+  residential_location_enabled:
+    name: Show home marker
+    description: >-
+      Draw a home marker on the GIF at the coordinates below. (The interactive
+      card instead uses your Home Assistant home location automatically.)
+  residential_latitude:
+    name: Home latitude
+    description: Latitude of your home for the GIF marker (decimal degrees).
+  residential_longitude:
+    name: Home longitude
+    description: Longitude of your home for the GIF marker (decimal degrees).
+  second_radar_enabled:
+    name: Enable second radar
+    description: >-
+      Overlay a second radar station to extend coverage. It must be a
+      neighbouring station whose coverage overlaps the primary (not a far-away
+      city). For the GIF it must also use the same range as the primary.
+  second_radar_product_id:
+    name: Second radar
+    description: BOM product ID of the second radar station.
+  third_radar_enabled:
+    name: Enable third radar
+    description: >-
+      Overlay a third radar station, same rules as the second: it must overlap
+      the primary's coverage and be a different station.
+  third_radar_product_id:
+    name: Third radar
+    description: BOM product ID of the third radar station.
