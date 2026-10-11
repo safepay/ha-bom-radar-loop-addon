@@ -1,0 +1,18 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint add-on configuration
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Home Assistant Add-on Lint
+        uses: frenck/action-addon-linter@v2
+        with:
+          path: "./bom-radar-loop"

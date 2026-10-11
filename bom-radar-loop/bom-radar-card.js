@@ -18,30 +18,55 @@ const LEAFLET_VERSION = "1.9.4";
 const LEAFLET_JS = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
 const LEAFLET_CSS = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
 
+// Esri ArcGIS basemaps are keyless and permit embedding (note: {z}/{y}/{x}
+// order and no {s} subdomains). They are the reliable default because OSM's
+// volunteer tile servers block app/embedded use under their usage policy.
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
 const BASE_MAPS = {
+  esri: {
+    url: `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`,
+    attribution: "Tiles &copy; Esri",
+    maxZoom: 19,
+  },
+  esri_topo: {
+    url: `${ESRI}/World_Topo_Map/MapServer/tile/{z}/{y}/{x}`,
+    attribution: "Tiles &copy; Esri",
+    maxZoom: 19,
+  },
+  esri_gray: {
+    url: `${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+    attribution: "Tiles &copy; Esri",
+    maxZoom: 16,
+  },
+  satellite: {
+    url: `${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`,
+    attribution: "Tiles &copy; Esri",
+    maxZoom: 19,
+  },
+  // OSM and Carto are offered but may be blocked / need a key; use with care.
+  osm: {
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap contributors",
+    subdomains: "abc",
+    maxZoom: 19,
+  },
   voyager: {
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap, &copy; CARTO",
     subdomains: "abcd",
     maxZoom: 20,
   },
   light: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap, &copy; CARTO",
     subdomains: "abcd",
     maxZoom: 20,
   },
   dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    attribution: "&copy; OpenStreetMap, &copy; CARTO",
     subdomains: "abcd",
     maxZoom: 20,
-  },
-  osm: {
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; OpenStreetMap contributors',
-    subdomains: "abc",
-    maxZoom: 19,
   },
 };
 
@@ -74,7 +99,7 @@ class BomRadarCard extends HTMLElement {
       {
         title: "BoM Radar",
         manifest: "/local/bom_radar/radar_manifest.json",
-        base_map: "osm",
+        base_map: "esri",
         height: "420px",
         opacity: 0.85,
         frame_delay: 500,
@@ -220,13 +245,10 @@ class BomRadarCard extends HTMLElement {
       attributionControl: true,
       scrollWheelZoom: true,
     });
-    const base = BASE_MAPS[this._config.base_map] || BASE_MAPS.osm;
-    L.tileLayer(base.url, {
-      attribution: base.attribution,
-      subdomains: base.subdomains,
-      maxZoom: base.maxZoom,
-      detectRetina: true,
-    }).addTo(this._map);
+    const base = BASE_MAPS[this._config.base_map] || BASE_MAPS.esri;
+    const tileOpts = { attribution: base.attribution, maxZoom: base.maxZoom };
+    if (base.subdomains) tileOpts.subdomains = base.subdomains;
+    L.tileLayer(base.url, tileOpts).addTo(this._map);
 
     // Sensible default view until the manifest's bounds load.
     this._map.setView([-25.0, 134.0], 4);
