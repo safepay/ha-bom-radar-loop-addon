@@ -242,9 +242,51 @@ class BomRadarCard extends HTMLElement {
     const refreshMs = Math.max((this._manifest?.update_interval || 600) * 1000, 60000);
     this._refreshTimer = setInterval(() => this._loadManifest(false), refreshMs);
 
-    // Leaflet needs a correctly-sized container; HA often renders cards hidden first.
-    this._resizeObserver = new ResizeObserver(() => this._map && this._map.invalidateSize());
+    // Leaflet needs a correctly-sized container, but HA often lays the card out
+    // AFTER the map is created (especially in the card-editor preview), so the
+    // map can init at 0x0 - loading a single tile and fitting to nothing. On
+    // every resize, fix the tile grid and apply any fit that was waiting for a
+    // real size.
+    this._resizeObserver = new ResizeObserver(() => {
+      if (!this._map) return;
+      this._map.invalidateSize();
+      if (this._needsFit) this._applyFit();
+    });
     this._resizeObserver.observe(this._mapEl);
+
+    // Belt-and-braces nudge in case the observer's first callback predates layout.
+    setTimeout(() => {
+      if (this._map) {
+        this._map.invalidateSize();
+        if (this._needsFit) this._applyFit();
+      }
+    }, 250);
+  }
+
+  // Centre/zoom on the radar coverage, but only once the container has a real
+  // size (otherwise Leaflet fits against 0 pixels and lands on the fallback
+  // view). Until then this is a no-op and the resize observer retries.
+  _applyFit() {
+    if (!this._map || !this._needsFit || !this._fitBounds || !this._fitBounds.length) return;
+    const el = this._mapEl;
+    if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return; // wait for a size
+    this._map.invalidateSize();
+    const dz = this._config.default_zoom;
+    if (dz != null) {
+      const home = this._homeLatLon();
+      const center =
+        this._config.default_center === "home" && home
+          ? home
+          : this._L.latLngBounds(this._fitBounds).getCenter();
+      this._map.setView(center, Number(dz));
+    } else {
+      this._map.fitBounds(this._fitBounds, { padding: [10, 10] });
+    }
+    this._needsFit = false;
+    this._selectLevels();
+    if (this._timestamps && this._timestamps.length) {
+      this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
+    }
   }
 
   _initMap() {
@@ -363,20 +405,10 @@ class BomRadarCard extends HTMLElement {
       this._legendEl.style.display = "none";
     }
 
-    if (fitView && allBounds.length) {
-      const dz = this._config.default_zoom;
-      if (dz != null) {
-        // Open at a fixed zoom, centred on home (if known) or the radar coverage.
-        const home = this._homeLatLon();
-        const center =
-          this._config.default_center === "home" && home
-            ? home
-            : this._L.latLngBounds(allBounds).getCenter();
-        this._map.setView(center, Number(dz));
-      } else {
-        this._map.fitBounds(allBounds, { padding: [10, 10] });
-      }
-    }
+    // Remember the coverage to fit; _applyFit() runs it once the map has a size.
+    this._fitBounds = allBounds;
+    this._needsFit = fitView && allBounds.length > 0;
+    this._applyFit();
 
     this._selectLevels();
 
