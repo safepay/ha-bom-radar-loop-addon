@@ -74,7 +74,7 @@ height: "420px"
 default_zoom: 8          # omit to fit all radar coverage; set to open zoomed on home
 default_center: home     # "home" (uses your HA location) or "radars"
 show_home: true          # home marker, from your Home Assistant location
-base_map: osm            # osm | voyager | light | dark  (voyager/light/dark need a Carto key)
+base_map: esri           # esri | esri_topo | esri_gray | satellite | osm  (osm may be blocked for embedding)
 ```
 
 > Which radars and how many zoom ranges are downloaded is set in the **addon** configuration (`map_detail` and the radar options), not on the card.

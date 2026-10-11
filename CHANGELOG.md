@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.17] - 2026-10-11
+## [1.0.18] - 2026-10-12
 
 ### Added
 
@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - **Transparent georeferenced frames + manifest**: each successful run now also writes un-composited transparent radar frames into `www/bom_radar/frames/` and a `radar_manifest.json` describing every radar level's geographic bounds (WGS84 south/west/north/east) and frame timestamps. This is the data the interactive card consumes; the existing GIF/PNG outputs are unchanged for backward compatibility.
 - **Multi-range zoom pyramid (`map_detail` option)**: the addon can download several BOM ranges per station (512/256/128km on "standard", plus 64km on "high") and the card shows the finest range whose coverage still reaches the current view - so zooming in reveals more detail and rural homes outside the small radii fall back gracefully to a wider range. "minimal" keeps the old single-range behaviour.
 - **Coverage-overlap validation**: `validate_config()` now rejects secondary/tertiary radars whose coverage does not overlap the primary even at the widest range (e.g. Melbourne + Perth), so the chosen radars always form one connected picture.
-- **Card display options**: `default_zoom` (+ `default_center`) to open at a fixed zoom centred on home instead of fitting all coverage; `show_home` to toggle the home marker; `base_map` (osm/voyager/light/dark).
+- **Card display options**: `default_zoom` (+ `default_center`) to open at a fixed zoom centred on home instead of fitting all coverage; `show_home` to toggle the home marker; `base_map` (defaults to keyless Esri tiles - `esri`/`esri_topo`/`esri_gray`/`satellite`, plus `osm` and Carto options). Esri is the default because OpenStreetMap's tile servers block embedded use under their usage policy.
 - **Home marker resolved by the card from Home Assistant**: the interactive card places the home marker from HA's own configured location (`hass.config.latitude/longitude`), falling back to the addon's `residential_*` options. The GIF marker behaviour is unchanged.
 - **Automatic card install**: the addon copies `bom-radar-card.js` and the colour-bar legend into the served output directory, so enabling the map only requires registering one Lovelace resource (no HACS needed).
 - **Friendlier config page**: added `translations/en.yaml` so every addon option shows a readable name and help text instead of the raw key.
