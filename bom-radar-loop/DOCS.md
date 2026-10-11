@@ -1,111 +1,89 @@
 # Australian BoM Radar Loop
 
-Creates animated radar loops and individual images from Australian Bureau of Meteorology (BoM) radar data for use in Home Assistant dashboards and LLM Vision analysis.
+Turns Australian Bureau of Meteorology (BoM) radar data into two things for your Home Assistant dashboard:
 
-## Features
+- an **interactive, pannable radar map** (via the included Lovelace card), and
+- a classic **animated GIF loop**.
 
-- **Automated Radar Downloads**: Fetches the latest radar images from the Australian Bureau of Meteorology FTP server
-- **Animated GIF Creation**: Generates smooth radar loop animations for your dashboards
-- **Individual Frame Export**: Saves separate radar images for use with LLM Vision analysis
-- **Multiple Background Options**: Choose between BoM or OpenStreetMap backgrounds with automatic high-resolution tile caching
-- **Multiple Radar Overlay**: Supports overlaying up to 3 radars for extended coverage
-- **Residential Location Marker**: Add a house icon showing your location on the radar
-- **Customizable Layers**: Choose which map layers to display (background, locations, catchments, topography)
-- **Configurable Update Interval**: Set how frequently radar images are updated
-- **Timezone Support**: Timestamps in both UTC and your local timezone
+It also saves the individual radar frames so you can feed them to LLM Vision for storm detection and analysis.
 
-## Installation
+## Quick start
 
-1. Add this repository to your Home Assistant add-on store:
-   - Go to **Settings** → **Add-ons** → **Add-on Store**
-   - Click the three dots in the top right and select **Repositories**
-   - Add the repository URL
-   - Find "Australian BoM Radar Loop" in the add-on store and click **Install**
+1. Install the add-on, then set at least:
+   - `radar_product_id` — your radar (see [Finding your radar](#finding-your-radar-product-id) or [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md))
+   - `timezone` — e.g. `Australia/Melbourne`
+2. **Start** the add-on (enable "Start on boot"). It writes to `/config/www/bom_radar/`, which Home Assistant serves at `/local/bom_radar/`.
+3. Add the interactive card (below) or the GIF to a dashboard.
 
-2. Configure the add-on (see Configuration section below)
+The add-on only writes files on a successful run, so after the first start give it a minute (or restart it) before the card or GIF will have data.
 
-3. Start the add-on
+## Interactive radar card (recommended)
 
-4. The radar images will be saved to `/config/www/bom_radar/` (or your configured path)
+The add-on ships a custom Lovelace card (`bom-radar-card.js`) and copies it into the output folder, so you only need to register it once.
+
+1. **Settings → Dashboards → ⋮ → Resources → Add Resource**
+   - URL: `/local/bom_radar/bom-radar-card.js`
+   - Type: **JavaScript Module**
+2. Add the card to a dashboard (Add Card → Manual):
+
+```yaml
+type: custom:bom-radar-card
+title: BoM Radar
+```
+
+Then hard-refresh the browser.
+
+**How it behaves:** zoom in and the card switches to the finer radar ranges around your home; zoom out for the wider picture. A home marker is placed from your Home Assistant location automatically. Play/pause and a timeline let you scrub through the frames.
+
+**Card options** (all optional):
+
+| Option | Default | Notes |
+|--------|---------|-------|
+| `height` | `420px` | Map height |
+| `base_map` | `esri` | `esri`, `esri_topo`, `esri_gray`, `satellite`, `osm` |
+| `default_zoom` | *(fit)* | A number opens at that zoom; omit to fit all coverage |
+| `default_center` | `home` | `home` or `radars` |
+| `show_home` | `true` | Show the home marker |
+| `opacity` | `0.85` | Radar overlay opacity |
+| `frame_delay` | `500` | Milliseconds per frame |
+
+> The default base map is **Esri** because OpenStreetMap's tile servers block embedded use. `osm` is still selectable but may fail to load; the Carto styles need an API key.
+
+> Which radars and how many zoom ranges are downloaded is set in the **add-on** configuration (`map_detail` and the radar options) — not on the card.
 
 ## Configuration
-
-### Basic Configuration
 
 ```yaml
 radar_product_id: IDR022
 timezone: Australia/Melbourne
 update_interval: 600
 output_path: www/bom_radar
-```
-
-- **radar_product_id**: Your BoM radar product ID (e.g., IDR022 for Melbourne, IDR023 for Geelong)
-  - See the **Quick Reference** table below for major cities
-  - For all radars by state, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">RADARS.md</a>
-- **timezone**: Your local timezone (e.g., Australia/Melbourne, Australia/Sydney)
-- **update_interval**: Seconds between radar updates (600 = 10 minutes, minimum 60)
-- **output_path**: Path relative to /config where images will be saved (default: www/bom_radar)
-
-### Radar Layers
-
-**Note: Layer options only apply when using BoM backgrounds. If you select OpenStreetMap as your background type, these layer settings are ignored.**
-
-Choose which map layers to overlay on the radar when using BoM backgrounds:
-
-- **layer_locations**: City and town names (enabled by default)
-- **layer_catchments**: Water catchment areas
-- **layer_topography**: Topographic lines
-- **layer_range**: Range rings
-
-The background layer is always included with BoM backgrounds. Simply check/uncheck the optional layers you want in the add-on configuration UI.
-
-### Background Type
-
-Choose between Bureau of Meteorology or OpenStreetMap backgrounds:
-
-```yaml
+map_detail: standard
 background_type: bom
 ```
 
-- **bom** (default): Uses the official BoM radar background
-  - Supports customizable layers (locations, catchments, topography, range)
-  - Includes official BoM range rings and geographic markers
+- **radar_product_id** — your BoM radar. The last digit is the range: `1`=512km, `2`=256km, `3`=128km, `4`=64km.
+- **timezone** — used for the timestamps shown on the loop and card.
+- **update_interval** — seconds between updates (minimum 60; 600 = 10 minutes).
+- **output_path** — folder under `/config` for the output (default `www/bom_radar`).
+- **map_detail** — how many ranges the interactive card can zoom through:
+  - `minimal` — only your chosen range
+  - `standard` — 512 + 256 + 128km (default)
+  - `high` — also 64km, for close-in suburb detail (more data each update)
+- **background_type** — background for the **GIF only** (`bom` or `openstreetmap`). It does not affect the interactive card, which uses its own live map.
 
-- **openstreetmap**: Uses OpenStreetMap as the background
-  - Higher resolution and clearer detail
-  - **No layer customization** - shows OSM map tiles only
-  - Legend is still included
-
-**OpenStreetMap Background Features:**
-- **Higher Resolution**: Fetches map tiles at 1024×1024 resolution, then downsamples to 512×512 for sharper, clearer backgrounds
-- **Automatic Zoom Optimization**: Zoom level is automatically calculated based on your radar's range (512km, 256km, 128km, or 64km)
-- **Persistent Caching**: Map tiles are cached locally for 30 days, providing near-instant background loading on subsequent runs and reducing load on OpenStreetMap servers
-- **Applies to Both PNG and GIF**: Both individual frame PNGs and the animated GIF will use the selected background
-- **Note**: BoM layer options (catchments, topography, locations, range) are only available when using BoM backgrounds
-
-**When to use OpenStreetMap:**
-- You want clearer, more detailed street maps and landmarks
-- You're using the radar for local area monitoring where street-level detail matters
-- You prefer modern map styling over BoM's basic background
-
-**When to use BoM (default):**
-- You want the official BoM layers (catchments, topography, etc.)
-- You prefer BoM's radar-specific background with range rings and geographic markers
-- You want consistency with official BoM radar products
-
-### GIF Animation Settings
+### GIF settings
 
 ```yaml
-gif_duration: 500
-gif_last_frame_duration: 1000
+gif_duration: 500            # milliseconds per frame
+gif_last_frame_duration: 1000 # extra pause on the latest frame
 ```
 
-- **gif_duration**: Milliseconds per frame (default: 500)
-- **gif_last_frame_duration**: Milliseconds to pause on last frame (default: 1000)
+### BoM layers (GIF, `background_type: bom` only)
 
-### Residential Location Marker
+Toggle extra layers drawn on the GIF: `layer_locations` (town names, on by default), `layer_catchments`, `layer_topography`, `layer_range` (range rings).
 
-Add a house icon to show your location on the radar loop:
+### Home marker (GIF)
 
 ```yaml
 residential_location_enabled: true
@@ -113,49 +91,29 @@ residential_latitude: -37.8136
 residential_longitude: 144.9631
 ```
 
-**Note**: The house marker only appears on the animated GIF, not on static images.
+This marker is drawn on the **GIF**. The interactive card uses your Home Assistant location instead, so you don't need to set these just for the card.
 
-### Multiple Radar Support
-
-Overlay additional radars for extended coverage:
+### Multiple radars (extended coverage)
 
 ```yaml
 second_radar_enabled: true
-second_radar_product_id: IDR953
+second_radar_product_id: IDR703
 third_radar_enabled: true
-third_radar_product_id: IDR683
+third_radar_product_id: IDR143
 ```
 
-The radars will be layered with your primary radar on top, second radar in the middle, and third radar on the bottom. They are automatically positioned based on their geographic locations.
+Rules (checked at startup; see the add-on log):
 
-**Important rules for secondary and tertiary radars:**
+- **Coverage must overlap.** Secondary/tertiary radars must be neighbouring stations whose coverage overlaps the primary — not a far-away city. Melbourne + Perth is rejected.
+- **Different stations.** Each must be a different physical station from the primary and from each other.
+- **GIF overlay only — same range.** For the composited GIF, the secondary/tertiary product IDs must use the **same range** as the primary (same last digit). The interactive card has no such restriction and overlays each radar at its own range.
 
-- **Same range as primary**: Secondary and tertiary product IDs must use the same range as your primary radar. For example, if your primary ends in `3` (128km), all additional radars must also end in `3`.
-- **Different station**: Secondary and tertiary radars must be from a different physical station than the primary, and from each other. You cannot use a different range of the same station (e.g. `IDR023` and `IDR022` are both Melbourne — only one can be used).
+## Using the GIF in Home Assistant
 
-## Using Radar Images in Home Assistant
+The GIF updates in place, so a plain picture card would cache it. Use a **Local File camera + Picture Entity**:
 
-### Step 1: Add Local File Camera Integration
-
-First, add the animated radar GIF as a camera entity using the **Local File** integration:
-
-1. Go to **Settings** → **Devices & Services**
-2. Click **Add Integration**
-3. Search for and select **Local File**
-4. Enter the file path: `/config/www/bom_radar/radar_animated.gif`
-5. Give it a name like "BoM Radar Loop"
-6. Click **Submit**
-
-This creates a camera entity (e.g., `camera.bom_radar_loop`) that you can use in your dashboard.
-
-### Step 2: Add to Dashboard with Picture Entity Card
-
-Now add the radar to your dashboard using a **Picture Entity** card:
-
-1. Edit your dashboard
-2. Click **Add Card**
-3. Select **Picture Entity**
-4. Configure the card:
+1. **Settings → Devices & Services → Add Integration → Local File**, path `/config/www/bom_radar/radar_animated.gif`, name it e.g. "BoM Radar Loop".
+2. Add a **Picture Entity** card:
 
 ```yaml
 type: picture-entity
@@ -166,148 +124,59 @@ show_name: true
 show_state: false
 ```
 
-**Important**: Set both `entity` and `camera_entity` to the same camera entity (`camera.bom_radar_loop`).
+## Output files
 
-The Picture Entity card will automatically refresh and show the latest animated radar loop.
+In `/config/www/bom_radar/` (served at `/local/bom_radar/`):
 
-### Alternative: Simple Picture Card
+- `radar_animated.gif` — the animated loop
+- `image_1.png` … `image_5.png` — individual frames (oldest → newest), for LLM Vision
+- `frames/` + `radar_manifest.json` — data for the interactive card
+- `bom-radar-card.js` — the Lovelace card
+- `radar_last_update.txt` — UTC + local timestamp
+- `radar_status.json` — per-radar availability (see below)
 
-If you prefer a simpler static image reference (without camera entity):
+### Status file (`radar_status.json`)
 
-```yaml
-type: picture
-image: /local/bom_radar/radar_animated.gif
-```
+Reports whether each radar is online, for monitoring and automations. Key fields: `overall_status` (`online` / `partial` / `offline`), `*_online`, `*_timestamps`, `latest_timestamp`, `last_updated`. Example REST sensor:
 
-**Note**: The Picture Entity card with camera entity is recommended as it handles updates more reliably.
-
-### Access Individual Frames
-
-Individual radar frames are saved as `image_1.png` through `image_5.png` in your output directory. These can be used with LLM Vision for storm detection and analysis.
-
-### Timestamp Information
-
-The addon creates a `radar_last_update.txt` file containing:
-- UTC timestamp
-- Local timestamp in your configured timezone
-
-This can be useful for AI prompts or automation.
-
-### Radar Status File
-
-The addon automatically generates a `radar_status.json` file containing detailed status information about all configured radars. This is especially useful for monitoring radar availability and creating automations.
-
-**Example status file:**
-```json
-{
-  "overall_status": "partial",
-  "primary_enabled": true,
-  "primary_product_id": "IDR952",
-  "primary_online": false,
-  "primary_timestamps": 0,
-  "secondary_enabled": true,
-  "secondary_product_id": "IDR022",
-  "secondary_online": true,
-  "secondary_timestamps": 5,
-  "tertiary_enabled": true,
-  "tertiary_product_id": "IDR142",
-  "tertiary_online": true,
-  "tertiary_timestamps": 5,
-  "latest_timestamp": "202512062034",
-  "frames_generated": 5,
-  "last_updated": "2025-12-07T12:34:56+11:00"
-}
-```
-
-**Status values:**
-- `overall_status`: Can be `"online"` (all enabled radars working), `"partial"` (some radars offline), or `"offline"` (no data available)
-- `primary_enabled`, `secondary_enabled`, `tertiary_enabled`: Boolean indicating if radar is configured
-- `primary_product_id`, `secondary_product_id`, `tertiary_product_id`: BoM radar product ID (null if not enabled)
-- `primary_online`, `secondary_online`, `tertiary_online`: Boolean indicating if radar has current data (null if not enabled)
-- `primary_timestamps`, `secondary_timestamps`, `tertiary_timestamps`: Number of radar frames downloaded (typically 5 when online, 0 if not enabled)
-- `latest_timestamp`: Most recent timestamp in YYYYMMDDHHmm format
-- `frames_generated`: Number of animation frames created
-- `last_updated`: ISO 8601 timestamp of when the status was generated
-
-**Home Assistant sensor example:**
 ```yaml
 sensor:
   - platform: rest
     resource: http://homeassistant.local:8123/local/bom_radar/radar_status.json
-    name: "Radar Overall Status"
+    name: Radar Status
     value_template: "{{ value_json.overall_status }}"
-    scan_interval: 600
-
-  - platform: rest
-    resource: http://homeassistant.local:8123/local/bom_radar/radar_status.json
-    name: "Primary Radar Status"
-    value_template: "{% if value_json.primary_online %}Online{% else %}Offline{% endif %}"
     scan_interval: 600
 ```
 
-**Use cases:**
-- Create Home Assistant sensors to monitor radar availability
-- Set up notifications when radars go offline
-- Display radar status on your dashboard
-- Automate actions based on radar health
+## Finding your radar product ID
 
-## Finding Your Radar Product ID
+| City | 128km | 256km |
+|------|-------|-------|
+| Sydney | IDR713 | IDR712 |
+| Melbourne | IDR023 | IDR022 |
+| Brisbane | IDR663 | IDR662 |
+| Perth | IDR703 | IDR702 |
+| Adelaide | IDR643 | IDR642 |
+| Canberra | IDR403 | IDR402 |
+| Hobart | IDR763 | IDR762 |
+| Darwin | IDR633 | IDR632 |
 
-**See the complete <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">Radar Reference Guide (RADARS.md)</a>** for a comprehensive list of all Australian radar locations organized by state.
-
-### Quick Reference - Major Cities
-
-| City | Recommended Product ID | Range |
-|------|----------------------|-------|
-| **Sydney** | IDR713 | 128km |
-| **Melbourne** | IDR023 | 128km |
-| **Brisbane** | IDR663 | 128km |
-| **Perth** | IDR703 | 128km |
-| **Adelaide** | IDR643 | 128km |
-| **Canberra** | IDR403 | 128km |
-| **Hobart** | IDR763 | 128km |
-| **Darwin** | IDR633 | 128km |
-
-Each radar location has multiple product IDs for different coverage ranges (64km, 128km, 256km, 512km). The 128km range is recommended for most users as it provides a good balance of coverage and detail.
-
-For a complete list of all radars organized by state/territory, see <a href="https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md" target="_blank">RADARS.md</a>.
+Full list by state: [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-addon/blob/main/bom-radar-loop/RADARS.md).
 
 ## Troubleshooting
 
-### Addon won't start
-- Check the addon logs for errors
-- Ensure your `radar_product_id` is valid
-- Verify your `output_path` is accessible
+**Card: "Custom element doesn't exist: bom-radar-card"** — the resource isn't registered, or the browser cached an old page. Re-check the resource URL and type (JavaScript Module), then hard-refresh. After an add-on update, append `?v=2` to the resource URL to bust the cache.
 
-### No images appearing
-- Check that `/config/www/bom_radar/` directory exists and has files
-- Verify the addon is running (check logs)
-- Ensure your Home Assistant can access `/local/bom_radar/` URLs
+**Card: "Could not load radar manifest"** — the add-on hasn't written files yet (restart it and wait a cycle), or your `output_path` isn't the default (then set `manifest: /local/<your_path>/radar_manifest.json` on the card).
 
-### Images not updating
-- Check your `update_interval` setting
-- Review addon logs for FTP connection errors
-- BoM FTP server may occasionally be unavailable
+**Card: base map is blank / "Access blocked"** — you're using `base_map: osm`, which OpenStreetMap blocks for embedding. Remove the option (defaults to Esri) or pick an Esri style.
 
-### House marker not appearing
-- House marker only appears on the animated GIF, not static images
-- Verify `residential_location_enabled: true`
-- Check your latitude/longitude coordinates are correct
-- Ensure coordinates fall within your radar's coverage area
+**No images appearing** — check the add-on log; verify `/config/www/bom_radar/` exists and that `/local/bom_radar/…` is reachable. The BoM FTP server is occasionally unavailable.
 
-### OpenStreetMap backgrounds not working
-- First run downloads tiles and may take 30-60 seconds
-- Subsequent runs are much faster due to local caching
-- Check addon logs for tile download errors
-- Ensure your Home Assistant instance can access tile.openstreetmap.org
-- If tiles fail to download, the addon will automatically fall back to BoM backgrounds
-- Tile cache is stored in your output directory under `tile_cache/`
+**Home marker missing on the GIF** — the GIF marker needs `residential_location_enabled: true` and coordinates inside the radar's coverage. (The card uses your HA location instead.)
 
 ## Support
 
-For issues, feature requests, or questions:
-- GitHub Issues: [https://github.com/safepay/ha-bom-radar-loop-addon/issues](https://github.com/safepay/ha-bom-radar-loop-addon/issues)
-
-## Credits
+Issues and requests: [GitHub Issues](https://github.com/safepay/ha-bom-radar-loop-addon/issues)
 
 Radar data provided by the Australian Bureau of Meteorology (BoM).
