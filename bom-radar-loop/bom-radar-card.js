@@ -14,6 +14,15 @@
  * does this automatically), then add it as a Lovelace resource of type "module".
  */
 
+// Run-once guard: Home Assistant can evaluate this resource more than once in a
+// single frontend session (e.g. after removing and re-adding it, or via a
+// cache-busted URL). Wrapping the whole file in a flag-guarded IIFE keeps the
+// top-level declarations function-scoped and ensures the card is only defined
+// and listed once, with no "already declared" / "already defined" errors.
+(function () {
+  if (window.__bomRadarCardInit) return;
+  window.__bomRadarCardInit = true;
+
 const LEAFLET_VERSION = "1.9.4";
 const LEAFLET_JS = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.js`;
 const LEAFLET_CSS = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css`;
@@ -512,19 +521,28 @@ class BomRadarCard extends HTMLElement {
   }
 }
 
-customElements.define("bom-radar-card", BomRadarCard);
+// Register idempotently. Home Assistant can load this resource more than once
+// in the same frontend session (e.g. the module stays registered after you
+// remove and re-add the resource), so guard against defining the element twice
+// and against listing the card twice in the picker.
+if (!customElements.get("bom-radar-card")) {
+  customElements.define("bom-radar-card", BomRadarCard);
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "bom-radar-card",
-  name: "BoM Radar Card",
-  description: "Interactive, pannable Australian BoM weather radar with time animation.",
-  preview: false,
-  documentationURL: "https://github.com/safepay/ha-bom-radar-loop-addon",
-});
+  window.customCards = window.customCards || [];
+  if (!window.customCards.some((card) => card.type === "bom-radar-card")) {
+    window.customCards.push({
+      type: "bom-radar-card",
+      name: "BoM Radar Card",
+      description: "Interactive, pannable Australian BoM weather radar with time animation.",
+      preview: false,
+      documentationURL: "https://github.com/safepay/ha-bom-radar-loop-addon",
+    });
+  }
 
-console.info(
-  "%c BOM-RADAR-CARD %c loaded ",
-  "color: white; background: #03a9f4; font-weight: 700;",
-  "color: #03a9f4; background: white; font-weight: 700;"
-);
+  console.info(
+    "%c BOM-RADAR-CARD %c loaded ",
+    "color: white; background: #03a9f4; font-weight: 700;",
+    "color: #03a9f4; background: white; font-weight: 700;"
+  );
+}
+})();

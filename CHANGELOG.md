@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Duplicate card in the picker**: if Home Assistant evaluated `bom-radar-card.js` more than once in a session (e.g. after removing and re-adding the resource, or via a cache-busted URL), the card registered itself twice and appeared twice in the card list, with a possible "already declared/defined" error. The card now wraps itself in a run-once guard and only registers once.
 - **Base map tiles blocked in dashboards**: OpenStreetMap's volunteer tile servers return HTTP 403 "Access blocked" for embedded/app use under their tile usage policy, so the radar card's base map failed to load. The card now defaults to keyless, embedding-permitted Esri ArcGIS tiles (`esri`/`esri_topo`/`esri_gray`/`satellite`); `osm` and Carto remain selectable via `base_map` but may be blocked or need a key. Retina double-requests are also disabled to keep tile volume down.
 
 ### Changed
