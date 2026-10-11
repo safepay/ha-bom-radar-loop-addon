@@ -3,6 +3,7 @@ import io
 import ftplib
 import json
 import os
+import shutil
 import sys
 import asyncio
 import logging
@@ -18,7 +19,7 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.0.13'
+VERSION = '1.0.17'
 
 # --- Image pipeline constants ---
 RADAR_IMAGE_SIZE = 512          # BOM radar PNGs are always 512x512
@@ -27,6 +28,19 @@ TIMESTAMP_STRIP_PX = 20         # Bottom pixels containing BOM timestamp text
 FRAME_COUNT = 5                  # Number of most-recent radar frames to fetch
 OSM_TILE_SIZE = 256              # OpenStreetMap tile dimensions (px)
 OSM_SUPERSAMPLE_SIZE = 1024     # High-res OSM composite before downsampling
+
+# BOM product IDs end in a range digit. Each range is a separate 512x512 image
+# covering a different radius, so the smaller ranges carry finer detail. The
+# interactive card treats these as a home-focused "resolution pyramid" and
+# switches between them as the user zooms. native_zoom is the slippy-map zoom
+# level at which that range's detail is best matched.
+#   digit: (range_radius_km, native_map_zoom)
+RANGE_INFO = {
+    '1': (512, 7),
+    '2': (256, 8),
+    '3': (128, 9),
+    '4': (64, 10),
+}
 
 # Check for Home Assistant addon options file or fallback to config.yaml
 OPTIONS_FILE = Path('/data/options.json')
@@ -273,6 +287,11 @@ class Config:
                 # Background type
                 'background_type': options.get('background_type', 'bom'),
 
+                # Interactive map: how many range levels to download per station
+                # ('minimal' | 'standard' | 'high') for the card's zoom pyramid.
+                'generate_map_assets': True,
+                'map_detail': options.get('map_detail', 'standard'),
+
                 # Scheduler settings (always enabled in addon mode)
                 'scheduler_enabled': True,
                 'update_interval': int(options.get('update_interval', 600)),
@@ -342,6 +361,10 @@ class Config:
 
                 # Background type
                 'background_type': os.getenv('BACKGROUND_TYPE', radar.get('background_type', 'bom')),
+
+                # Interactive map
+                'generate_map_assets': str(os.getenv('GENERATE_MAP_ASSETS', radar.get('generate_map_assets', True))).lower() == 'true',
+                'map_detail': os.getenv('MAP_DETAIL', radar.get('map_detail', 'standard')),
 
                 # Scheduler settings
                 'scheduler_enabled': os.getenv('SCHEDULER_ENABLED', str(scheduler.get('enabled', True))).lower() == 'true',
@@ -473,6 +496,23 @@ class RadarProcessor:
                     f"station prefix '{prefix_a}'. Secondary and tertiary radars must "
                     f"be different stations from each other."
                 )
+
+        # Validate that the chosen radars actually cover a connected area. At the
+        # widest available range, every secondary/tertiary radar should overlap
+        # the primary's coverage; otherwise the user has picked far-apart stations
+        # (e.g. Melbourne + Canberra + Perth) that can never form one picture.
+        primary_widest = self.widest_bounds(pid)
+        if primary_widest is not None:
+            for label, sid, _prefix in enabled_secondaries:
+                sid_widest = self.widest_bounds(sid)
+                if sid_widest is None:
+                    continue  # Unknown metadata already warned about above.
+                if not self._boxes_overlap(primary_widest, sid_widest):
+                    issues.append(
+                        f"{label} radar '{sid}' does not overlap the primary radar "
+                        f"'{pid}' even at their widest range. Choose radars whose "
+                        f"coverage areas are adjacent so they form one continuous map."
+                    )
 
         # Validate residential coordinates
         if self.config.get('residential_enabled'):
@@ -1015,6 +1055,254 @@ class RadarProcessor:
             logging.error(f"Error parsing timestamp from {filename}: {e}")
             return f"Last file: {filename}\nError parsing timestamp: {e}\n"
     
+    def compute_radar_bounds(self, product_id):
+        """Compute the WGS84 geographic bounding box of a radar's 512x512 image.
+
+        BOM radar PNGs are square, centred on the radar, with a fixed
+        km-per-pixel scale (from radar_metadata.py). The half-width of the
+        image in kilometres is therefore (RADAR_IMAGE_SIZE / 2) * km_per_pixel.
+        Converting that to degrees gives the south/west/north/east corners that
+        an interactive map needs to place the frame as a georeferenced overlay.
+
+        This is the inverse of latlon_to_pixel() and uses the same flat-earth
+        approximation, which is accurate to well under a pixel for the 64-256km
+        ranges these radars cover.
+
+        Returns:
+            dict with 'south'/'west'/'north'/'east' in decimal degrees, or
+            None if the radar is not in the metadata table.
+        """
+        metadata = RADAR_METADATA.get(product_id)
+        if metadata is None:
+            return None
+
+        lat, lon, km_per_pixel = metadata
+        half_km = (RADAR_IMAGE_SIZE / 2.0) * km_per_pixel
+
+        # 1 degree of latitude is ~111.32 km everywhere; longitude shrinks by
+        # cos(latitude) as you move away from the equator.
+        km_per_degree = 111.32
+        deg_lat = half_km / km_per_degree
+        cos_lat = math.cos(math.radians(lat))
+        deg_lon = half_km / (km_per_degree * cos_lat) if abs(cos_lat) > 1e-9 else deg_lat
+
+        return {
+            'south': lat - deg_lat,
+            'north': lat + deg_lat,
+            'west': lon - deg_lon,
+            'east': lon + deg_lon,
+        }
+
+    def _local_time_strings(self, timestamp):
+        """Return (utc_label, local_label) for a BOM YYYYMMDDHHmm timestamp."""
+        dt_utc = pytz.utc.localize(datetime.strptime(timestamp, "%Y%m%d%H%M"))
+        dt_local = dt_utc.astimezone(pytz.timezone(self.config['timezone']))
+        utc_label = dt_utc.strftime('%Y-%m-%d %H:%M UTC')
+        local_label = dt_local.strftime('%I:%M %p').lstrip('0').lower()
+        return utc_label, local_label
+
+    def available_ranges(self, station_product_id):
+        """List the product IDs for every known BOM range of a radar station.
+
+        A station is identified by the product ID minus its final range digit.
+        Returns IDs ordered widest-range first (512 -> 64km), so the first entry
+        is the best choice for a zoomed-out view. The configured ID is always
+        included even if it is missing from the metadata table.
+        """
+        prefix = station_product_id[:-1]
+        ids = [prefix + digit for digit in ('1', '2', '3', '4') if (prefix + digit) in RADAR_METADATA]
+        if station_product_id not in ids:
+            ids.append(station_product_id)
+        return ids
+
+    @staticmethod
+    def _boxes_overlap(a, b):
+        """True if two lat/lon bounding boxes intersect at all."""
+        return not (
+            a['east'] < b['west'] or a['west'] > b['east'] or
+            a['north'] < b['south'] or a['south'] > b['north']
+        )
+
+    def widest_bounds(self, station_product_id):
+        """Geographic bounds of a station's widest available range, or None."""
+        ranges = self.available_ranges(station_product_id)
+        for pid in ranges:
+            bounds = self.compute_radar_bounds(pid)
+            if bounds is not None:
+                return bounds
+        return None
+
+    def download_station_ranges(self, ftp, ftp_files, station_product_id,
+                                reuse_images=None, wanted_digits=None):
+        """Download the wanted BOM ranges for one radar station.
+
+        wanted_digits selects which range levels to fetch ('1'=512km ... '4'=64km);
+        the station's own configured range is always included (and reused via
+        reuse_images to avoid downloading it twice). Ranges with no frames
+        (offline / not published) are skipped. Returns a list of level dicts
+        ordered widest-range first:
+            [{ 'product_id', 'range_km', 'native_zoom', 'images': {ts: Image} }]
+        """
+        if wanted_digits is None:
+            wanted_digits = {'1', '2', '3'}
+        # Always keep the configured range, whatever detail level was chosen.
+        wanted = set(wanted_digits) | {station_product_id[-1]}
+
+        levels = []
+        for pid in self.available_ranges(station_product_id):
+            if pid[-1] not in wanted:
+                continue
+            km, native_zoom = RANGE_INFO.get(pid[-1], (256, 8))
+            if reuse_images is not None and pid == station_product_id:
+                images = reuse_images
+            else:
+                images = {}
+                self.download_radar_frames(ftp, ftp_files, pid, f"{pid} ({km}km)", images)
+            if images:
+                levels.append({
+                    'product_id': pid,
+                    'range_km': km,
+                    'native_zoom': native_zoom,
+                    'images': images,
+                })
+        return levels
+
+    def write_map_assets(self, radar_sets):
+        """Write transparent per-range frames plus a manifest for the interactive card.
+
+        Unlike the GIF pipeline (which flattens radar + background into one
+        opaque image and discards geography), this emits the *transparent*
+        radar frames un-composited, together with each range's geographic
+        bounds and timestamps. A browser-side Lovelace card (bom-radar-card.js)
+        overlays them on a live slippy map so the user can pan, zoom and animate.
+
+        Each radar station may carry several range levels (64-512km). The card
+        shows the finest level whose bounds still cover what the user is looking
+        at, giving home-area detail that falls back gracefully to a wider range
+        for rural locations outside the smaller radii.
+
+        Args:
+            radar_sets: list of (role, station_product_id, levels) where each
+                level is a dict {product_id, range_km, native_zoom, images}.
+        """
+        out = self.config['output_directory']
+        frames_dir = os.path.join(out, 'frames')
+        os.makedirs(frames_dir, exist_ok=True)
+
+        # Clear stale frames from previous runs so the directory never grows.
+        for stale in Path(frames_dir).glob('*.png'):
+            try:
+                stale.unlink()
+            except OSError as e:
+                logging.debug(f"Could not remove stale frame {stale}: {e}")
+
+        # Build the global timestamp timeline from every range of every station.
+        all_ts = set()
+        for _role, _pid, levels in radar_sets:
+            for level in levels:
+                all_ts.update(level['images'].keys())
+        timestamps = sorted(all_ts)[-FRAME_COUNT:]
+
+        radars_manifest = []
+        total_frames = 0
+        for role, station_pid, levels in radar_sets:
+            level_entries = []
+            for level in levels:
+                pid = level['product_id']
+                bounds = self.compute_radar_bounds(pid)
+                if bounds is None:
+                    logging.warning(
+                        f"No metadata for {pid}; omitting that range from the map "
+                        "manifest (frames cannot be georeferenced without a centre)."
+                    )
+                    continue
+
+                frame_entries = []
+                for ts in timestamps:
+                    if ts not in level['images']:
+                        continue
+                    filename = f"{pid}_{ts}.png"
+                    try:
+                        level['images'][ts].save(os.path.join(frames_dir, filename))
+                    except OSError as e:
+                        logging.error(f"Failed to save map frame {filename}: {e}")
+                        continue
+                    utc_label, local_label = self._local_time_strings(ts)
+                    frame_entries.append({
+                        'timestamp': ts,
+                        'url': f"frames/{filename}",
+                        'time_utc': utc_label,
+                        'time_local': local_label,
+                    })
+
+                if frame_entries:
+                    total_frames += len(frame_entries)
+                    level_entries.append({
+                        'product_id': pid,
+                        'range_km': level['range_km'],
+                        'native_zoom': level['native_zoom'],
+                        'bounds': bounds,
+                        'frames': frame_entries,
+                    })
+
+            if level_entries:
+                radars_manifest.append({
+                    'id': station_pid,
+                    'role': role,
+                    'levels': level_entries,
+                })
+
+        manifest = {
+            'version': VERSION,
+            'generated': datetime.now(pytz.timezone(self.config['timezone'])).isoformat(),
+            'timezone': self.config['timezone'],
+            'update_interval': self.config['update_interval'],
+            'timestamps': timestamps,
+            'radars': radars_manifest,
+            'home': {
+                'enabled': bool(self.config['residential_enabled']),
+                'lat': self.config['residential_lat'],
+                'lon': self.config['residential_lon'],
+            },
+            'legend_url': 'radar-colour-bar.png',
+        }
+
+        manifest_path = os.path.join(out, 'radar_manifest.json')
+        try:
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest, f, indent=2)
+            level_count = sum(len(r['levels']) for r in radars_manifest)
+            logging.info(
+                f"Wrote interactive map manifest: {manifest_path} "
+                f"({len(radars_manifest)} station(s), {level_count} range level(s), "
+                f"{total_frames} frame(s))"
+            )
+        except OSError as e:
+            logging.error(f"Failed to write map manifest: {e}")
+
+        self._install_card_assets(out)
+
+    def _install_card_assets(self, out):
+        """Copy the Lovelace card and legend into the HA-served output directory.
+
+        Placing these next to the manifest means the files are reachable at
+        /local/<output_path>/ with no extra web server, so the user only needs
+        to register the card as a Lovelace resource once.
+        """
+        assets = [
+            (self.config.get('legend_file', '/app/radar-colour-bar.png'), 'radar-colour-bar.png'),
+            ('/app/bom-radar-card.js', 'bom-radar-card.js'),
+        ]
+        for src, dest_name in assets:
+            try:
+                if os.path.exists(src):
+                    shutil.copyfile(src, os.path.join(out, dest_name))
+                    logging.debug(f"Installed card asset: {dest_name}")
+                else:
+                    logging.debug(f"Card asset source not found (skipping): {src}")
+            except OSError as e:
+                logging.warning(f"Could not install card asset {dest_name}: {e}")
+
     def process_images(self):
         """Main processing function"""
         self.frames = []
@@ -1075,6 +1363,36 @@ class RadarProcessor:
                 if self.download_radar_frames(ftp, ftp_files, third_radar_product_id, 'third', third_radar_images):
                     third_offset_x, third_offset_y = self.calculate_radar_offset(product_id, third_radar_product_id)
                     logging.info(f"Third radar will be offset by ({third_offset_x}, {third_offset_y}) pixels")
+
+            # Build multi-range level sets for the interactive map, while the FTP
+            # connection is still open. The GIF only needs the configured range,
+            # but the map can use every available range (64-512km) of each station
+            # as a home-focused resolution pyramid. We reuse the frames already
+            # fetched for the configured range and only download the extra ranges.
+            map_radar_sets = []
+            if self.config.get('generate_map_assets', True):
+                # map_detail picks how many zoom levels to fetch per station:
+                #   minimal  -> only the configured range (no zoom pyramid)
+                #   standard -> 512 + 256 + 128km (good balance; default)
+                #   high     -> also 64km for close-in suburb detail
+                detail = self.config.get('map_detail', 'standard')
+                wanted_digits = {
+                    'standard': {'1', '2', '3'},
+                    'high': {'1', '2', '3', '4'},
+                }.get(detail, set())  # 'minimal' -> empty (configured range only)
+
+                station_inputs = [('primary', product_id, primary_radar_images)]
+                if second_radar_enabled and second_radar_product_id:
+                    station_inputs.append(('secondary', second_radar_product_id, second_radar_images))
+                if third_radar_enabled and third_radar_product_id:
+                    station_inputs.append(('tertiary', third_radar_product_id, third_radar_images))
+                for role, station_pid, known in station_inputs:
+                    levels = self.download_station_ranges(
+                        ftp, ftp_files, station_pid,
+                        reuse_images=known, wanted_digits=wanted_digits
+                    )
+                    if levels:
+                        map_radar_sets.append((role, station_pid, levels))
 
             # Collect all unique timestamps from all radars
             all_timestamps = set()
@@ -1299,6 +1617,16 @@ class RadarProcessor:
                 logging.info(f"Wrote status file: {status_filepath} (overall_status: {overall_status})")
             except Exception as e:
                 logging.error(f"Failed to write status file: {e}")
+
+            # Write interactive map assets: transparent georeferenced frames +
+            # manifest + the Lovelace card. These power bom-radar-card.js, which
+            # lets a HA dashboard pan/zoom/animate over the radar coverage area
+            # instead of only showing the baked GIF loop.
+            try:
+                if map_radar_sets:
+                    self.write_map_assets(map_radar_sets)
+            except Exception as e:
+                logging.error(f"Failed to write interactive map assets: {e}")
 
             # Transfer to SMB share (only in non-addon mode)
             if not self.config.get('addon_mode', False):
