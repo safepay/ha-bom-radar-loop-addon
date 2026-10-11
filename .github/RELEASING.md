@@ -38,5 +38,7 @@ release/tag is for the changelog and record-keeping.
 
 ## Changelog
 
-Keep `CHANGELOG.md` updated as you go: add entries under `## [Unreleased]`.
+Keep `bom-radar-loop/CHANGELOG.md` updated as you go: add entries under
+`## [Unreleased]`. It lives in the add-on folder so Home Assistant shows it in
+the update dialog.
 When you cut a release, rename that heading to the new `## [X.Y.Z] - DATE`.
