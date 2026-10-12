@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-12
+
 ### Fixed
 
 - **"Image not available" boxes on the radar**: a frame that failed to load showed the browser's broken-image icon. The card now shows a transparent image instead (nothing), so a missing frame is never visible.

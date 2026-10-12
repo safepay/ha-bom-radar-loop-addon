@@ -1,6 +1,6 @@
 {
   "name": "Australian BoM Radar Loop",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "slug": "bom-radar-loop",
   "description": "Animated radar loops plus an interactive, pannable radar map (via the bom-radar-card Lovelace card) from Australian Bureau of Meteorology data. Choose BoM or OpenStreetMap backgrounds for the GIF, and overlay up to 3 radars.",
   "arch": ["aarch64", "amd64"],
