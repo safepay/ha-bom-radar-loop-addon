@@ -38,7 +38,20 @@ release/tag is for the changelog and record-keeping.
 
 ## Changelog
 
-Keep `bom-radar-loop/CHANGELOG.md` updated as you go: add entries under
-`## [Unreleased]`. It lives in the add-on folder so Home Assistant shows it in
-the update dialog.
-When you cut a release, rename that heading to the new `## [X.Y.Z] - DATE`.
+Keep `bom-radar-loop/CHANGELOG.md` updated as you go: add entries under a
+`## [Unreleased]` heading at the top, creating that heading yourself if it is
+not there (the release workflow does not leave one behind). It lives in the
+add-on folder so Home Assistant shows it in the update dialog.
+
+When you cut a release, the **Release** action renames `## [Unreleased]` to
+`## [X.Y.Z] - DATE` for you and does **not** re-add an empty `[Unreleased]`.
+That is deliberate: Home Assistant renders this whole file in the update dialog,
+so a shipped release must not lead with an empty "Unreleased" section. Do not
+rename the heading by hand before running the action.
+
+The same step then keeps only the **newest three releases** in
+`CHANGELOG.md` and moves anything older into `bom-radar-loop/CHANGELOG-ARCHIVE.md`
+(newest first), so the update dialog stays short while the full history is
+preserved. Change the window via the `KEEP_RELEASES` env var in
+`.github/workflows/release.yml`. The archive is for reading only — never add new
+entries there by hand.
