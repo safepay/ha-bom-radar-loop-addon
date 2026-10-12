@@ -341,6 +341,7 @@ class BomRadarCard extends HTMLElement {
     }
     this._needsFit = false;
     this._selectLevels();
+    this._rebuildTimeline();
     if (this._timestamps && this._timestamps.length) {
       this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
     }
@@ -365,7 +366,10 @@ class BomRadarCard extends HTMLElement {
     // zooming in reveals finer detail (and rural homes fall back to a wider
     // range that still reaches them).
     this._map.on("zoomend moveend", () => {
-      if (this._selectLevels()) this._showIndex(this._currentIndex ?? 0);
+      if (this._selectLevels()) {
+        this._rebuildTimeline();
+        this._showIndex(this._currentIndex ?? 0);
+      }
     });
   }
 
@@ -442,14 +446,17 @@ class BomRadarCard extends HTMLElement {
             native_zoom: lvl.native_zoom,
             bounds: latLngBounds,
             framesByTs,
+            // This level's own frame timestamps, sorted. Different ranges are
+            // captured at different minute offsets, so a level will not have a
+            // frame at every global timeline step.
+            sortedTs: Object.keys(framesByTs).sort(),
           });
         }
       });
       if (levels.length) this._stations.push({ role: radar.role, levels, active: 0 });
     });
 
-    this._timestamps = this._manifest.timestamps || [];
-    this._slider.max = Math.max(0, this._timestamps.length - 1);
+    this._globalTimestamps = this._manifest.timestamps || [];
 
     // Home marker (resolved from HA first, addon manifest as fallback).
     this._updateHomeMarker();
@@ -465,9 +472,11 @@ class BomRadarCard extends HTMLElement {
     // Remember the coverage to fit; _applyFit() runs it once the map has a size.
     this._fitBounds = allBounds;
     this._needsFit = fitView && allBounds.length > 0;
-    this._applyFit();
 
+    this._currentIndex = null;
     this._selectLevels();
+    this._rebuildTimeline();
+    this._applyFit();
 
     if (this._timestamps.length && this._stations.length) {
       this._showIndex(this._timestamps.length - 1); // Start on the newest frame.
@@ -475,6 +484,26 @@ class BomRadarCard extends HTMLElement {
     } else {
       this._timeLabel.textContent = "No data";
     }
+  }
+
+  // The animation timeline is the active (primary) range's own frames, so every
+  // step shows a distinct image. Different ranges are captured at different
+  // minute offsets, so animating over the merged union would repeat/blank
+  // frames. Rebuilt whenever the active level changes (e.g. on zoom).
+  _rebuildTimeline() {
+    let tl = null;
+    const stations = this._stations || [];
+    const primary = stations.find((s) => s.role === "primary") || stations[0];
+    if (primary && primary.active >= 0 && primary.levels[primary.active]) {
+      tl = primary.levels[primary.active].sortedTs;
+    }
+    if (!tl || !tl.length) tl = this._globalTimestamps || [];
+    this._timestamps = tl;
+    this._slider.max = Math.max(0, tl.length - 1);
+    if (this._currentIndex == null || this._currentIndex > tl.length - 1) {
+      this._currentIndex = tl.length - 1; // default to the newest frame
+    }
+    this._slider.value = this._currentIndex;
   }
 
   // Choose, per station, the finest range level whose coverage still intersects
@@ -552,18 +581,32 @@ class BomRadarCard extends HTMLElement {
     i = Math.max(0, Math.min(i, this._timestamps.length - 1));
     const ts = this._timestamps[i];
 
+    let shownTs = ts;
     this._stations.forEach((st) => {
       st.levels.forEach((lv, idx) => {
         const active = idx === st.active;
+        // Hold-last: show this level's most recent frame at or before the
+        // current step (its earliest if none yet), rather than blanking when
+        // the level has no frame at this exact timestamp. Without this the
+        // animation flickers on/off as the merged timeline steps through
+        // timestamps that only some ranges captured.
+        let frameTs = null;
+        if (active) {
+          for (const t of lv.sortedTs) {
+            if (t <= ts) frameTs = t;
+          }
+          if (frameTs === null) frameTs = lv.sortedTs[0];
+          if (st.role !== "secondary" && st.role !== "tertiary") shownTs = frameTs;
+        }
         Object.entries(lv.framesByTs).forEach(([t, overlay]) => {
-          overlay.setOpacity(active && t === ts ? this._opacity : 0);
+          overlay.setOpacity(active && t === frameTs ? this._opacity : 0);
         });
       });
     });
 
     this._currentIndex = i;
     this._slider.value = i;
-    this._timeLabel.textContent = this._labels[ts] || ts;
+    this._timeLabel.textContent = this._labels[shownTs] || this._labels[ts] || ts;
   }
 
   _togglePlay() {
