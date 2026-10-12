@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - **"Image not available" boxes on the radar**: a frame that failed to load showed the browser's broken-image icon. The card now shows a transparent image instead (nothing), so a missing frame is never visible.
 - **Frames could briefly go missing after an update**: each run deleted every frame file and rewrote them, so a browser still showing the previous manifest's frames would 404 them. The add-on now keeps the last few generations of frames (retention window) instead of wiping them each run.
 
+### Changed
+
+- **Card tidy-up**: removed the broken Carto base maps (`voyager`/`light`/`dark`, which needed an API key) and deduplicated the map CSS. Base map options are now `esri`, `esri_topo`, `esri_gray`, `satellite`, and `osm` (YAML only).
+
 ## [1.1.3] - 2026-10-12
 
 ### Added
