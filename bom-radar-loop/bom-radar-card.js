@@ -52,30 +52,13 @@ const BASE_MAPS = {
     attribution: "Tiles &copy; Esri",
     maxZoom: 19,
   },
-  // OSM and Carto are offered but may be blocked / need a key; use with care.
+  // OSM is available via YAML (base_map: osm) for networks that allow it, but it
+  // blocks most embedded use, so it is not offered in the editor.
   osm: {
     url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     attribution: "&copy; OpenStreetMap contributors",
     subdomains: "abc",
     maxZoom: 19,
-  },
-  voyager: {
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap, &copy; CARTO",
-    subdomains: "abcd",
-    maxZoom: 20,
-  },
-  light: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap, &copy; CARTO",
-    subdomains: "abcd",
-    maxZoom: 20,
-  },
-  dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap, &copy; CARTO",
-    subdomains: "abcd",
-    maxZoom: 20,
   },
 };
 
@@ -197,7 +180,8 @@ class BomRadarCard extends HTMLElement {
       bom-radar-card { display: block; height: 100%; }
       .bom-radar-ha-card { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
       .bom-radar-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 0 8px 0; }
-      .bom-radar-map { flex: 1 1 auto; min-height: 180px; background: var(--card-background-color, #222); }
+      .bom-radar-map { flex: 1 1 auto; min-height: 180px; overflow: hidden;
+        background: #a0d6f5; font-family: inherit; }
       .bom-radar-map .bom-radar-frame { image-rendering: auto; }
       .bom-radar-controls {
         flex: 0 0 auto;
@@ -238,7 +222,6 @@ class BomRadarCard extends HTMLElement {
          renders cards inside shadow DOM, so Leaflet's own stylesheet (loaded
          into document.head) does not reach the map - without these rules the
          tiles have no positioning and scatter/drift when you pan. --- */
-      .bom-radar-map { overflow: hidden; background: #a0d6f5; font-family: inherit; }
       .bom-radar-map .leaflet-pane,
       .bom-radar-map .leaflet-tile,
       .bom-radar-map .leaflet-marker-icon,
