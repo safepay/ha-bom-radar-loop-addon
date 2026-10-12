@@ -42,6 +42,10 @@ env:
   CONFIG: bom-radar-loop/config.json
   PYFILE: bom-radar-loop/bom_radar_downloader.py
   CHANGELOG: bom-radar-loop/CHANGELOG.md
+  ARCHIVE: bom-radar-loop/CHANGELOG-ARCHIVE.md
+  # How many recent releases the user-facing CHANGELOG.md keeps; older ones are
+  # moved to ARCHIVE so Home Assistant's update dialog stays short.
+  KEEP_RELEASES: "3"
 
 jobs:
   release:
@@ -115,6 +119,61 @@ jobs:
           else
             echo "No [Unreleased] section to stamp."
           fi
+
+      - name: Trim the changelog and archive older releases
+        run: |
+          # Keep only the newest $KEEP_RELEASES releases in the user-facing
+          # CHANGELOG.md (Home Assistant renders the whole file in the update
+          # dialog, so a long history buries what actually changed). Anything
+          # older is moved, newest-first, into ARCHIVE. Full history is retained,
+          # just not in the file HA shows.
+          [ -f "$CHANGELOG" ] || exit 0
+          TMP="$(mktemp -d)"
+
+          # Split CHANGELOG.md into: the header (before the first release
+          # heading), the newest KEEP_RELEASES sections, and the rest to demote.
+          # Only "## [X.Y.Z]" counts as a release; a stray "## [Unreleased]"
+          # (n stays 0) is always kept.
+          awk -v keep="$KEEP_RELEASES" \
+              -v hdr="$TMP/head.md" -v kept="$TMP/kept.md" -v demote="$TMP/demote.md" '
+            /^## \[[0-9]/ { n++ }
+            n==0    { print > hdr;    next }
+            n<=keep { print > kept;   next }
+                    { print > demote }
+          ' "$CHANGELOG"
+
+          if [ ! -s "$TMP/demote.md" ]; then
+            echo "Changelog within the ${KEEP_RELEASES}-release window; nothing to archive."
+            exit 0
+          fi
+
+          # Rebuild CHANGELOG.md = header + newest sections.
+          cat "$TMP/head.md" "$TMP/kept.md" > "$CHANGELOG"
+
+          # Ensure the demoted block ends with a blank line so the first
+          # existing archived heading stays separated when prepended.
+          printf '\n' >> "$TMP/demote.md"
+
+          # Create the archive with a header on first use.
+          if [ ! -f "$ARCHIVE" ]; then
+            printf '# Changelog archive\n\nOlder releases, moved out of [CHANGELOG.md](CHANGELOG.md) so Home Assistant'\''s add-on update dialog stays short. Newest first.\n\n' > "$ARCHIVE"
+          fi
+
+          # Prepend the demoted sections after the archive's own header
+          # (everything before its first release heading).
+          awk -v ahdr="$TMP/ahead.md" -v abody="$TMP/abody.md" '
+            /^## \[[0-9]/ { seen=1 }
+            seen==0 { print > ahdr; next }
+                    { print > abody }
+          ' "$ARCHIVE"
+          touch "$TMP/abody.md"
+          cat "$TMP/ahead.md" "$TMP/demote.md" "$TMP/abody.md" > "$ARCHIVE"
+
+          # The archive is a new file on first run, so stage it explicitly
+          # (the commit step's "git commit -am" only picks up tracked files).
+          git add -- "$CHANGELOG" "$ARCHIVE"
+          echo "Archived $(grep -c '^## \[' "$TMP/demote.md") release section(s)."
+          git --no-pager diff --cached -- "$CHANGELOG" "$ARCHIVE" | head -60
 
       - name: Commit and tag
         env:

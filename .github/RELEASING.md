@@ -48,3 +48,10 @@ When you cut a release, the **Release** action renames `## [Unreleased]` to
 That is deliberate: Home Assistant renders this whole file in the update dialog,
 so a shipped release must not lead with an empty "Unreleased" section. Do not
 rename the heading by hand before running the action.
+
+The same step then keeps only the **newest three releases** in
+`CHANGELOG.md` and moves anything older into `bom-radar-loop/CHANGELOG-ARCHIVE.md`
+(newest first), so the update dialog stays short while the full history is
+preserved. Change the window via the `KEEP_RELEASES` env var in
+`.github/workflows/release.yml`. The archive is for reading only — never add new
+entries there by hand.

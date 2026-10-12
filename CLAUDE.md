@@ -37,7 +37,10 @@ and the card JS is shipped and loaded verbatim (no bundler, no transpile).
   so HA shows it in the update dialog). Create that heading yourself if it's
   missing — the release workflow renames `[Unreleased]` to the version on
   release and does **not** leave a fresh one behind, so a shipped release never
-  leads with an empty "Unreleased" section in HA's update dialog.
+  leads with an empty "Unreleased" section in HA's update dialog. The same step
+  keeps only the newest 3 releases in `CHANGELOG.md` and moves older ones to
+  `bom-radar-loop/CHANGELOG-ARCHIVE.md` (read-only history) to keep the dialog
+  short — don't hand-edit the archive.
 
 ## Keep these in sync when you change one
 
