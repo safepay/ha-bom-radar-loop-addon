@@ -1189,10 +1189,17 @@ class RadarProcessor:
         frames_dir = os.path.join(out, 'frames')
         os.makedirs(frames_dir, exist_ok=True)
 
-        # Clear stale frames from previous runs so the directory never grows.
+        # Remove only frames older than a retention window, keeping the last few
+        # generations. A browser that has not yet re-fetched the manifest is still
+        # showing the previous run's frames; deleting every frame each run made
+        # those 404 ("image not available"). Filenames are timestamp-based, so the
+        # current frames are rewritten with a fresh mtime below and kept.
+        retention = max(3600, int(self.config.get('update_interval', 600)) * 4)
+        cutoff = time.time() - retention
         for stale in Path(frames_dir).glob('*.png'):
             try:
-                stale.unlink()
+                if stale.stat().st_mtime < cutoff:
+                    stale.unlink()
             except OSError as e:
                 logging.debug(f"Could not remove stale frame {stale}: {e}")
 

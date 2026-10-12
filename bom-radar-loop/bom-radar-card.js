@@ -464,6 +464,10 @@ class BomRadarCard extends HTMLElement {
             opacity: 0,
             interactive: false,
             className: "bom-radar-frame",
+            // If a frame ever fails to load, show a transparent image instead of
+            // the browser's broken-image icon.
+            errorOverlayUrl:
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
           });
           overlay.addTo(this._map);
           framesByTs[fr.timestamp] = overlay;
