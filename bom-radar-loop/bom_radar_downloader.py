@@ -1196,15 +1196,9 @@ class RadarProcessor:
             except OSError as e:
                 logging.debug(f"Could not remove stale frame {stale}: {e}")
 
-        # Build the global timestamp timeline from every range of every station.
-        all_ts = set()
-        for _role, _pid, levels in radar_sets:
-            for level in levels:
-                all_ts.update(level['images'].keys())
-        timestamps = sorted(all_ts)[-FRAME_COUNT:]
-
         radars_manifest = []
         total_frames = 0
+        published_ts = set()
         for role, station_pid, levels in radar_sets:
             level_entries = []
             for level in levels:
@@ -1217,10 +1211,13 @@ class RadarProcessor:
                     )
                     continue
 
+                # Each range keeps its OWN most-recent FRAME_COUNT frames. Ranges
+                # are captured at different minute offsets, so they must not be
+                # forced onto one shared timeline (that would drop frames and make
+                # the card's animation repeat/blank).
+                level_ts = sorted(level['images'].keys())[-FRAME_COUNT:]
                 frame_entries = []
-                for ts in timestamps:
-                    if ts not in level['images']:
-                        continue
+                for ts in level_ts:
                     filename = f"{pid}_{ts}.png"
                     try:
                         level['images'][ts].save(os.path.join(frames_dir, filename))
@@ -1234,6 +1231,7 @@ class RadarProcessor:
                         'time_utc': utc_label,
                         'time_local': local_label,
                     })
+                    published_ts.add(ts)
 
                 if frame_entries:
                     total_frames += len(frame_entries)
@@ -1251,6 +1249,10 @@ class RadarProcessor:
                     'role': role,
                     'levels': level_entries,
                 })
+
+        # Manifest-level timestamps are only a fallback for the card; each range
+        # carries its own frame timestamps.
+        timestamps = sorted(published_ts)
 
         manifest = {
             'version': VERSION,

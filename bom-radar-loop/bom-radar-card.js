@@ -207,6 +207,63 @@ class BomRadarCard extends HTMLElement {
         background: var(--primary-color, #03a9f4); border: 2px solid #fff;
         transform: rotate(-45deg); box-shadow: 0 0 4px rgba(0,0,0,.5);
       }
+
+      /* --- Critical Leaflet layout, scoped to this card. Home Assistant
+         renders cards inside shadow DOM, so Leaflet's own stylesheet (loaded
+         into document.head) does not reach the map - without these rules the
+         tiles have no positioning and scatter/drift when you pan. --- */
+      .bom-radar-map { overflow: hidden; background: #a0d6f5; font-family: inherit; }
+      .bom-radar-map .leaflet-pane,
+      .bom-radar-map .leaflet-tile,
+      .bom-radar-map .leaflet-marker-icon,
+      .bom-radar-map .leaflet-marker-shadow,
+      .bom-radar-map .leaflet-tile-container,
+      .bom-radar-map .leaflet-pane > svg,
+      .bom-radar-map .leaflet-pane > canvas,
+      .bom-radar-map .leaflet-zoom-box,
+      .bom-radar-map .leaflet-image-layer,
+      .bom-radar-map .leaflet-layer { position: absolute; left: 0; top: 0; }
+      .bom-radar-map .leaflet-tile { width: 256px; height: 256px; filter: inherit;
+        visibility: hidden; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+      .bom-radar-map .leaflet-tile-loaded { visibility: inherit; }
+      .bom-radar-map .leaflet-tile,
+      .bom-radar-map .leaflet-image-layer { max-width: none !important; max-height: none !important; }
+      .bom-radar-map .leaflet-pane { z-index: 400; }
+      .bom-radar-map .leaflet-tile-pane { z-index: 200; }
+      .bom-radar-map .leaflet-overlay-pane { z-index: 400; }
+      .bom-radar-map .leaflet-shadow-pane { z-index: 500; }
+      .bom-radar-map .leaflet-marker-pane { z-index: 600; }
+      .bom-radar-map .leaflet-tooltip-pane { z-index: 650; }
+      .bom-radar-map .leaflet-popup-pane { z-index: 700; }
+      .bom-radar-map .leaflet-map-pane canvas { z-index: 100; }
+      .bom-radar-map .leaflet-map-pane svg { z-index: 200; }
+      .bom-radar-map .leaflet-overlay-pane svg { max-width: none !important; max-height: none !important; }
+      .bom-radar-map .leaflet-zoom-animated { transform-origin: 0 0; }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-zoom-animated {
+        transition: transform .25s cubic-bezier(0,0,.25,1); }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-tile,
+      .bom-radar-map .leaflet-pan-anim .leaflet-tile { transition: none; }
+      .bom-radar-map .leaflet-zoom-anim .leaflet-zoom-hide { visibility: hidden; }
+      .bom-radar-map .leaflet-control { position: relative; z-index: 800; pointer-events: auto; float: left; clear: both; }
+      .bom-radar-map .leaflet-top, .bom-radar-map .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+      .bom-radar-map .leaflet-top { top: 0; }
+      .bom-radar-map .leaflet-bottom { bottom: 0; }
+      .bom-radar-map .leaflet-left { left: 0; }
+      .bom-radar-map .leaflet-right { right: 0; }
+      .bom-radar-map .leaflet-right .leaflet-control { float: right; margin-right: 10px; }
+      .bom-radar-map .leaflet-left .leaflet-control { margin-left: 10px; }
+      .bom-radar-map .leaflet-top .leaflet-control { margin-top: 10px; }
+      .bom-radar-map .leaflet-bottom .leaflet-control { margin-bottom: 10px; }
+      .bom-radar-map .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,.4); border-radius: 4px; }
+      .bom-radar-map .leaflet-bar a { background: #fff; border-bottom: 1px solid #ccc;
+        width: 26px; height: 26px; line-height: 26px; display: block; text-align: center;
+        text-decoration: none; color: #000; font: bold 18px 'Lucida Console', Monaco, monospace; }
+      .bom-radar-map .leaflet-bar a:hover { background: #f4f4f4; }
+      .bom-radar-map .leaflet-bar a:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+      .bom-radar-map .leaflet-bar a:last-child { border-bottom: none; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+      .bom-radar-map .leaflet-control-attribution { background: rgba(255,255,255,.7); margin: 0; padding: 0 5px;
+        color: #333; font: 11px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif; }
+      .bom-radar-map .leaflet-control-attribution a { color: #0078A8; text-decoration: none; }
     `;
 
     content.appendChild(mapEl);
@@ -284,6 +341,7 @@ class BomRadarCard extends HTMLElement {
     }
     this._needsFit = false;
     this._selectLevels();
+    this._rebuildTimeline();
     if (this._timestamps && this._timestamps.length) {
       this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
     }
@@ -308,7 +366,10 @@ class BomRadarCard extends HTMLElement {
     // zooming in reveals finer detail (and rural homes fall back to a wider
     // range that still reaches them).
     this._map.on("zoomend moveend", () => {
-      if (this._selectLevels()) this._showIndex(this._currentIndex ?? 0);
+      if (this._selectLevels()) {
+        this._rebuildTimeline();
+        this._showIndex(this._currentIndex ?? 0);
+      }
     });
   }
 
@@ -385,14 +446,17 @@ class BomRadarCard extends HTMLElement {
             native_zoom: lvl.native_zoom,
             bounds: latLngBounds,
             framesByTs,
+            // This level's own frame timestamps, sorted. Different ranges are
+            // captured at different minute offsets, so a level will not have a
+            // frame at every global timeline step.
+            sortedTs: Object.keys(framesByTs).sort(),
           });
         }
       });
       if (levels.length) this._stations.push({ role: radar.role, levels, active: 0 });
     });
 
-    this._timestamps = this._manifest.timestamps || [];
-    this._slider.max = Math.max(0, this._timestamps.length - 1);
+    this._globalTimestamps = this._manifest.timestamps || [];
 
     // Home marker (resolved from HA first, addon manifest as fallback).
     this._updateHomeMarker();
@@ -408,9 +472,11 @@ class BomRadarCard extends HTMLElement {
     // Remember the coverage to fit; _applyFit() runs it once the map has a size.
     this._fitBounds = allBounds;
     this._needsFit = fitView && allBounds.length > 0;
-    this._applyFit();
 
+    this._currentIndex = null;
     this._selectLevels();
+    this._rebuildTimeline();
+    this._applyFit();
 
     if (this._timestamps.length && this._stations.length) {
       this._showIndex(this._timestamps.length - 1); // Start on the newest frame.
@@ -418,6 +484,26 @@ class BomRadarCard extends HTMLElement {
     } else {
       this._timeLabel.textContent = "No data";
     }
+  }
+
+  // The animation timeline is the active (primary) range's own frames, so every
+  // step shows a distinct image. Different ranges are captured at different
+  // minute offsets, so animating over the merged union would repeat/blank
+  // frames. Rebuilt whenever the active level changes (e.g. on zoom).
+  _rebuildTimeline() {
+    let tl = null;
+    const stations = this._stations || [];
+    const primary = stations.find((s) => s.role === "primary") || stations[0];
+    if (primary && primary.active >= 0 && primary.levels[primary.active]) {
+      tl = primary.levels[primary.active].sortedTs;
+    }
+    if (!tl || !tl.length) tl = this._globalTimestamps || [];
+    this._timestamps = tl;
+    this._slider.max = Math.max(0, tl.length - 1);
+    if (this._currentIndex == null || this._currentIndex > tl.length - 1) {
+      this._currentIndex = tl.length - 1; // default to the newest frame
+    }
+    this._slider.value = this._currentIndex;
   }
 
   // Choose, per station, the finest range level whose coverage still intersects
@@ -495,18 +581,32 @@ class BomRadarCard extends HTMLElement {
     i = Math.max(0, Math.min(i, this._timestamps.length - 1));
     const ts = this._timestamps[i];
 
+    let shownTs = ts;
     this._stations.forEach((st) => {
       st.levels.forEach((lv, idx) => {
         const active = idx === st.active;
+        // Hold-last: show this level's most recent frame at or before the
+        // current step (its earliest if none yet), rather than blanking when
+        // the level has no frame at this exact timestamp. Without this the
+        // animation flickers on/off as the merged timeline steps through
+        // timestamps that only some ranges captured.
+        let frameTs = null;
+        if (active) {
+          for (const t of lv.sortedTs) {
+            if (t <= ts) frameTs = t;
+          }
+          if (frameTs === null) frameTs = lv.sortedTs[0];
+          if (st.role !== "secondary" && st.role !== "tertiary") shownTs = frameTs;
+        }
         Object.entries(lv.framesByTs).forEach(([t, overlay]) => {
-          overlay.setOpacity(active && t === ts ? this._opacity : 0);
+          overlay.setOpacity(active && t === frameTs ? this._opacity : 0);
         });
       });
     });
 
     this._currentIndex = i;
     this._slider.value = i;
-    this._timeLabel.textContent = this._labels[ts] || ts;
+    this._timeLabel.textContent = this._labels[shownTs] || this._labels[ts] || ts;
   }
 
   _togglePlay() {
