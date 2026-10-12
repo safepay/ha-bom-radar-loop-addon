@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **"Image not available" boxes on the radar**: a frame that failed to load showed the browser's broken-image icon. The card now shows a transparent image instead (nothing), so a missing frame is never visible.
+- **Frames could briefly go missing after an update**: each run deleted every frame file and rewrote them, so a browser still showing the previous manifest's frames would 404 them. The add-on now keeps the last few generations of frames (retention window) instead of wiping them each run.
+
 ## [1.1.3] - 2026-10-12
 
 ### Added
