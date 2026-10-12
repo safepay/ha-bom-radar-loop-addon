@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-12
+
 ### Added
 
 - **Auto cache-busting loader**: the add-on now ships `bom-radar-loader.js`. Register it as your Lovelace resource (instead of the card directly) and you never have to add/bump a `?v=` by hand again - the loader reads the add-on version from the manifest and loads the matching card, so updates are picked up automatically (the HACS "stamp" trick, without HACS).
