@@ -1294,6 +1294,7 @@ class RadarProcessor:
         assets = [
             (self.config.get('legend_file', '/app/radar-colour-bar.png'), 'radar-colour-bar.png'),
             ('/app/bom-radar-card.js', 'bom-radar-card.js'),
+            ('/app/bom-radar-loader.js', 'bom-radar-loader.js'),
         ]
         for src, dest_name in assets:
             try:

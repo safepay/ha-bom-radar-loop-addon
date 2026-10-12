@@ -19,10 +19,10 @@ The add-on only writes files on a successful run, so after the first start give 
 
 ## Interactive radar card (recommended)
 
-The add-on ships a custom Lovelace card (`bom-radar-card.js`) and copies it into the output folder, so you only need to register it once.
+The add-on ships the card and copies it into the output folder, so you only need to register it once.
 
 1. **Settings → Dashboards → ⋮ → Resources → Add Resource**
-   - URL: `/local/bom_radar/bom-radar-card.js`
+   - URL: `/local/bom_radar/bom-radar-loader.js`
    - Type: **JavaScript Module**
 2. Add the card to a dashboard (Add Card → Manual):
 
@@ -31,7 +31,9 @@ type: custom:bom-radar-card
 title: BoM Radar
 ```
 
-Then hard-refresh the browser.
+Then hard-refresh the browser once.
+
+> **Why the loader?** Registering `bom-radar-loader.js` (not the card directly) means you never have to cache-bust with `?v=` again: the loader reads the add-on version and loads the matching card, so updates are picked up automatically. (Registering `/local/bom_radar/bom-radar-card.js` directly still works, but then you must add `?v=N` and bump it after each update to beat the browser cache.)
 
 **How it behaves:** zoom in and the card switches to the finer radar ranges around your home; zoom out for the wider picture. A home marker is placed from your Home Assistant location automatically. Play/pause and a timeline let you scrub through the frames.
 
@@ -131,7 +133,7 @@ In `/config/www/bom_radar/` (served at `/local/bom_radar/`):
 - `radar_animated.gif` — the animated loop
 - `image_1.png` … `image_5.png` — individual frames (oldest → newest), for LLM Vision
 - `frames/` + `radar_manifest.json` — data for the interactive card
-- `bom-radar-card.js` — the Lovelace card
+- `bom-radar-card.js` — the Lovelace card; `bom-radar-loader.js` — the resource you register (auto cache-busts the card)
 - `radar_last_update.txt` — UTC + local timestamp
 - `radar_status.json` — per-radar availability (see below)
 

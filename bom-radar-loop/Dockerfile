@@ -21,6 +21,7 @@ COPY radar_metadata.py ./
 COPY home-circle-dark.png ./
 COPY radar-colour-bar.png ./
 COPY bom-radar-card.js ./
+COPY bom-radar-loader.js ./
 COPY run.sh /
 
 # Make run script executable

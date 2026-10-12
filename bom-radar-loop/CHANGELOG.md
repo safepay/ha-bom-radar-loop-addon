@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Auto cache-busting loader**: the add-on now ships `bom-radar-loader.js`. Register it as your Lovelace resource (instead of the card directly) and you never have to add/bump a `?v=` by hand again - the loader reads the add-on version from the manifest and loads the matching card, so updates are picked up automatically (the HACS "stamp" trick, without HACS).
+
 ### Fixed
 
 - **Mixed radar resolutions when zoomed in with multiple radars**: overlapping radars drew one radar's fine detail and another's coarse blocks in the same place. The card now shows a single resolution at a time - it finds the finest range in view and hides any coarser radar - so zooming into your home area shows just that radar's detail, while a zoomed-out view still shows all radars for coverage.

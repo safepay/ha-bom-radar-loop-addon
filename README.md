@@ -26,7 +26,7 @@ A Home Assistant add-on that turns Australian Bureau of Meteorology radar into a
 The add-on copies the card into `/config/www/bom_radar/`. Register it once:
 
 - **Settings → Dashboards → ⋮ → Resources → Add Resource**
-  - URL `/local/bom_radar/bom-radar-card.js`, type **JavaScript Module**
+  - URL `/local/bom_radar/bom-radar-loader.js`, type **JavaScript Module** (the loader auto-updates the card - no manual `?v=` cache-busting)
 
 Then add it to a dashboard:
 
