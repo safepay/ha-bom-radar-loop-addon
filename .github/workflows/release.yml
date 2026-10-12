@@ -41,6 +41,7 @@ concurrency:
 env:
   CONFIG: bom-radar-loop/config.json
   PYFILE: bom-radar-loop/bom_radar_downloader.py
+  CHANGELOG: bom-radar-loop/CHANGELOG.md
 
 jobs:
   release:
@@ -95,6 +96,22 @@ jobs:
           jq -e --arg v "$NEXT" '.version == $v' "$CONFIG" > /dev/null
           grep -q "^VERSION = '${NEXT}'" "$PYFILE"
           git --no-pager diff -- "$CONFIG" "$PYFILE"
+
+      - name: Stamp the changelog
+        env:
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          # Home Assistant shows this file in the update dialog, so the top
+          # section must name the version, not "[Unreleased]". Rename the
+          # current [Unreleased] heading to the new version + date and open a
+          # fresh empty [Unreleased] above it. No-op if there is no [Unreleased].
+          if [ -f "$CHANGELOG" ] && grep -q '^## \[Unreleased\]' "$CHANGELOG"; then
+            DATE="$(date +%Y-%m-%d)"
+            sed -i -E "0,/^## \[Unreleased\]\$/s//## [Unreleased]\n\n## [${NEXT}] - ${DATE}/" "$CHANGELOG"
+            git --no-pager diff -- "$CHANGELOG" | head -40
+          else
+            echo "No [Unreleased] section to stamp."
+          fi
 
       - name: Commit and tag
         env:
