@@ -264,8 +264,13 @@ class BomRadarCard extends HTMLElement {
       .bom-radar-map .leaflet-top .leaflet-control { margin-top: 10px; }
       .bom-radar-map .leaflet-bottom .leaflet-control { margin-bottom: 10px; }
       .bom-radar-map .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,.4); border-radius: 4px; }
+      /* box-sizing + flex centring: the 1px divider below counts inside the 26px
+         box (border-box), and align/justify centre the glyph or SVG in the white
+         area for every button. Plain line-height centring left the +/- glyphs
+         off-centre because the border added height a content-box did not absorb. */
       .bom-radar-map .leaflet-bar a { background: #fff; border-bottom: 1px solid #ccc;
-        width: 26px; height: 26px; line-height: 26px; display: block; text-align: center;
+        box-sizing: border-box; width: 26px; height: 26px;
+        display: flex; align-items: center; justify-content: center;
         text-decoration: none; color: #000; font: bold 18px 'Lucida Console', Monaco, monospace; }
       .bom-radar-map .leaflet-bar a:hover { background: #f4f4f4; }
       .bom-radar-map .leaflet-bar a:first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
@@ -337,6 +342,23 @@ class BomRadarCard extends HTMLElement {
     if (!this._map || !this._needsFit || !this._fitBounds || !this._fitBounds.length) return;
     const el = this._mapEl;
     if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return; // wait for a size
+    this._setConfiguredView();
+    this._needsFit = false;
+    this._selectLevels();
+    this._rebuildTimeline();
+    if (this._timestamps && this._timestamps.length) {
+      this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
+      // Start the animation automatically once the map is sized and has frames.
+      if (this._config.autoplay) this._play();
+    }
+  }
+
+  // Apply the card's configured starting view: either the explicit default_zoom
+  // (centred on home or the radar coverage, per default_center) or a fit to all
+  // radar bounds. Shared by the initial fit and the recentre control so both
+  // land on exactly the same view.
+  _setConfiguredView() {
+    if (!this._map || !this._fitBounds || !this._fitBounds.length) return;
     this._map.invalidateSize();
     const dz = this._config.default_zoom;
     if (dz != null) {
@@ -349,14 +371,14 @@ class BomRadarCard extends HTMLElement {
     } else {
       this._map.fitBounds(this._fitBounds, { padding: [10, 10] });
     }
-    this._needsFit = false;
-    this._selectLevels();
-    this._rebuildTimeline();
-    if (this._timestamps && this._timestamps.length) {
-      this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
-      // Start the animation automatically once the map is sized and has frames.
-      if (this._config.autoplay) this._play();
-    }
+  }
+
+  // Recentre/reset the map to the configured starting view (bound to the map's
+  // recentre control). The map's own zoomend/moveend handler re-runs
+  // _selectLevels() afterwards, so the correct radar range is re-picked for the
+  // restored zoom.
+  _resetView() {
+    this._setConfiguredView();
   }
 
   _initMap() {
@@ -370,6 +392,39 @@ class BomRadarCard extends HTMLElement {
     const tileOpts = { attribution: base.attribution, maxZoom: base.maxZoom };
     if (base.subdomains) tileOpts.subdomains = base.subdomains;
     L.tileLayer(base.url, tileOpts).addTo(this._map);
+
+    // Recentre control: a small button under the zoom control that resets the
+    // map to the card's configured starting view (home/coverage + default_zoom).
+    // It is a real L.Control so it lives in Leaflet's control pane and inherits
+    // the card's .leaflet-bar button styling. onAdd is an arrow so `this` stays
+    // the card (Leaflet would otherwise bind it to the control instance).
+    const RecentreControl = L.Control.extend({
+      options: { position: "topleft" },
+      onAdd: () => {
+        const container = L.DomUtil.create("div", "leaflet-bar bom-radar-recentre");
+        const link = L.DomUtil.create("a", "", container);
+        link.href = "#";
+        link.title = "Recentre";
+        link.setAttribute("role", "button");
+        link.setAttribute("aria-label", "Recentre map");
+        link.innerHTML = `
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="4"></line>
+            <line x1="12" y1="20" x2="12" y2="23"></line>
+            <line x1="1" y1="12" x2="4" y2="12"></line>
+            <line x1="20" y1="12" x2="23" y2="12"></line>
+          </svg>`;
+        L.DomEvent.on(link, "click", (e) => {
+          L.DomEvent.stop(e); // don't let the click fall through to the map
+          this._resetView();
+        });
+        L.DomEvent.disableClickPropagation(container);
+        return container;
+      },
+    });
+    this._map.addControl(new RecentreControl());
 
     // Sensible default view until the manifest's bounds load.
     this._map.setView([-25.0, 134.0], 4);

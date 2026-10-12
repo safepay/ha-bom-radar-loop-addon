@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. Older releases are in [CHANGELOG-ARCHIVE.md](CHANGELOG-ARCHIVE.md).
 
+## [Unreleased]
+
+### Added
+
+- **Recentre button on the card map:** a small crosshair control beneath the map's zoom buttons resets the view to the card's configured starting position - back to your home/coverage centre and `default_zoom` (or the fit-to-all-radars view when no default zoom is set) - so after panning and zooming around you can jump back to the default view in one tap.
+
 ## [1.1.5] - 2026-10-12
 
 ### Added
