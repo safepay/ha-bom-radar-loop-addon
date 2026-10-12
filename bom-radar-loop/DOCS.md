@@ -33,7 +33,9 @@ title: BoM Radar
 
 Then hard-refresh the browser once.
 
-> **Why the loader?** Registering `bom-radar-loader.js` (not the card directly) means you never have to cache-bust with `?v=` again: the loader reads the add-on version and loads the matching card, so updates are picked up automatically. (Registering `/local/bom_radar/bom-radar-card.js` directly still works, but then you must add `?v=N` and bump it after each update to beat the browser cache.)
+> **Updates are cache-busted for you.** On storage-mode dashboards (resources managed in the UI, as above), the add-on registers and version-stamps the card resource itself through Home Assistant's API, using a digest of the card's contents (`bom-radar-card.js?v=<hash>`). When the add-on updates, the stamp changes and HA serves the fresh card after one browser refresh - no manual `?v=` bump. This is why the add-on requests Home Assistant API access.
+>
+> **Why the loader is still shipped.** If your resources are managed in YAML (read-only to the API), register `bom-radar-loader.js` instead of the card: it reads the add-on version and imports the matching card, so updates are still picked up automatically. Registering `/local/bom_radar/bom-radar-card.js` directly also works, but then you must add `?v=N` and bump it after each update to beat the browser cache.
 
 **How it behaves:** zoom in and the card switches to the finer radar ranges around your home; zoom out for the wider picture. A home marker is placed from your Home Assistant location automatically. Play/pause and a timeline let you scrub through the frames.
 
@@ -167,7 +169,7 @@ Full list by state: [RADARS.md](https://github.com/safepay/ha-bom-radar-loop-add
 
 ## Troubleshooting
 
-**Card: "Custom element doesn't exist: bom-radar-card"** — the resource isn't registered, or the browser cached an old page. Re-check the resource URL and type (JavaScript Module), then hard-refresh. After an add-on update, append `?v=2` to the resource URL to bust the cache.
+**Card: "Custom element doesn't exist: bom-radar-card"** — the resource isn't registered, or the browser cached an old page. Re-check the resource URL and type (JavaScript Module), then hard-refresh. After an add-on update the card is normally re-stamped automatically (storage-mode dashboards); if you manage resources in YAML, use the loader or append/bump a `?v=` on the resource URL to bust the cache.
 
 **Card: "Could not load radar manifest"** — the add-on hasn't written files yet (restart it and wait a cycle), or your `output_path` isn't the default (then set `manifest: /local/<your_path>/radar_manifest.json` on the card).
 

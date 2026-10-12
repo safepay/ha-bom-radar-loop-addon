@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import io
 import ftplib
+import hashlib
 import json
 import os
 import shutil
@@ -1722,6 +1723,136 @@ class RadarProcessor:
                 pass
 
 
+def _card_local_url(output_directory):
+    """Map the on-disk output dir to the URL Home Assistant serves it at.
+
+    HA exposes /config/www/<x> as /local/<x>. Returns the path to the card
+    (no query), or None if the output isn't under /config/www (then HA can't
+    serve it at /local and auto-registration doesn't apply).
+    """
+    marker = '/config/www/'
+    if marker not in output_directory:
+        return None
+    rel = output_directory.split(marker, 1)[1].strip('/')
+    return f"/local/{rel}/bom-radar-card.js"
+
+
+async def register_card_resource(output_directory):
+    """Register (or version-stamp) the bom-radar-card Lovelace resource via HA's API.
+
+    This is the HACS "stamp" trick done from the add-on: when the add-on updates,
+    the card's bytes change, so we point the Lovelace resource at
+    bom-radar-card.js?v=<content-digest>. HA serves /local/ with a long max-age and
+    no revalidation, so changing the URL is the only reliable way to dislodge the
+    cached card. Busting on the file digest (not VERSION) means it fires exactly
+    when the card actually changes.
+
+    Only works when Lovelace resources are UI/storage-managed; in YAML mode the API
+    is read-only, so we skip and leave the bundled loader as the fallback. Any
+    failure is logged and swallowed - this must never take the add-on down.
+
+    Note: a browser refresh is still required once after an update to pick up the
+    new resource URL (the same as HACS).
+    """
+    token = os.environ.get('SUPERVISOR_TOKEN')
+    if not token:
+        logging.info("No SUPERVISOR_TOKEN in environment; skipping Lovelace resource auto-registration.")
+        return
+
+    card_src = '/app/bom-radar-card.js'
+    if not os.path.exists(card_src):
+        logging.debug(f"Card source {card_src} not found; skipping resource auto-registration.")
+        return
+
+    card_path = _card_local_url(output_directory)
+    if card_path is None:
+        logging.info("Output path is not under /config/www; HA can't serve the card at /local, skipping auto-registration.")
+        return
+
+    with open(card_src, 'rb') as f:
+        digest = hashlib.sha256(f.read()).hexdigest()[:8]
+    desired_url = f"{card_path}?v={digest}"
+
+    try:
+        import aiohttp
+    except ImportError:
+        logging.warning("aiohttp is not installed; cannot auto-register the Lovelace resource.")
+        return
+
+    async def recv(ws):
+        return await asyncio.wait_for(ws.receive_json(), timeout=10)
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.ws_connect('http://supervisor/core/websocket') as ws:
+                hello = await recv(ws)
+                if hello.get('type') == 'auth_required':
+                    await ws.send_json({'type': 'auth', 'access_token': token})
+                    ack = await recv(ws)
+                    if ack.get('type') != 'auth_ok':
+                        logging.warning(f"HA WebSocket auth failed ({ack.get('type')}); skipping resource auto-registration.")
+                        return
+
+                msg_id = 0
+
+                async def call(payload):
+                    nonlocal msg_id
+                    msg_id += 1
+                    await ws.send_json(dict(payload, id=msg_id))
+                    while True:
+                        msg = await recv(ws)
+                        if msg.get('id') == msg_id:
+                            return msg
+
+                listed = await call({'type': 'lovelace/resources'})
+                if not listed.get('success', False):
+                    err = listed.get('error', {}) or {}
+                    logging.info(
+                        "Lovelace resources aren't writable "
+                        f"({err.get('message') or err.get('code') or 'unknown'}); "
+                        "likely YAML mode - using the bundled loader as the cache-busting fallback."
+                    )
+                    return
+
+                card_res = None
+                loader_present = False
+                for r in (listed.get('result') or []):
+                    path = str(r.get('url', '')).split('?', 1)[0]
+                    if path.endswith('/bom-radar-card.js'):
+                        card_res = r
+                    elif path.endswith('/bom-radar-loader.js'):
+                        loader_present = True
+
+                if card_res is not None:
+                    if card_res.get('url') == desired_url:
+                        logging.info(f"Lovelace card resource already up to date ({desired_url}).")
+                        return
+                    res = await call({
+                        'type': 'lovelace/resources/update',
+                        'resource_id': card_res.get('id'),
+                        'res_type': 'module',
+                        'url': desired_url,
+                    })
+                    if res.get('success'):
+                        logging.info(f"Updated Lovelace card resource -> {desired_url}")
+                    else:
+                        logging.warning(f"Failed to update Lovelace card resource: {res.get('error')}")
+                elif loader_present:
+                    logging.info("Loader resource already registered; leaving it as the cache-busting path.")
+                else:
+                    res = await call({
+                        'type': 'lovelace/resources/create',
+                        'res_type': 'module',
+                        'url': desired_url,
+                    })
+                    if res.get('success'):
+                        logging.info(f"Registered Lovelace card resource -> {desired_url}")
+                    else:
+                        logging.warning(f"Failed to register Lovelace card resource: {res.get('error')}")
+    except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
+        logging.warning(f"Could not reach the HA WebSocket API for resource auto-registration: {e}")
+
+
 async def main():
     """Main application entry point with continuous scheduling"""
 
@@ -1774,6 +1905,21 @@ async def main():
     # Initialize processor
     processor = RadarProcessor(config)
     processor.validate_config()
+
+    # Get the bundled card/loader onto disk and version-stamp the Lovelace
+    # resource up front, so an updated add-on serves the fresh card immediately -
+    # independent of whether the first radar cycle has succeeded yet. Both steps
+    # are best-effort and must never block radar processing.
+    if config.get('addon_mode', False):
+        try:
+            os.makedirs(config['output_directory'], exist_ok=True)
+            processor._install_card_assets(config['output_directory'])
+        except OSError as e:
+            logging.warning(f"Could not install card assets at startup: {e}")
+        try:
+            await register_card_resource(config['output_directory'])
+        except Exception as e:
+            logging.warning(f"Lovelace resource auto-registration failed: {e}")
 
     # Run continuously or once
     if config['scheduler_enabled']:
