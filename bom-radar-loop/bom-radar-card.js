@@ -545,23 +545,39 @@ class BomRadarCard extends HTMLElement {
     const zoom = this._map.getZoom();
     let changed = false;
 
-    this._stations.forEach((st) => {
-      let active = -1; // -1 = this station shows nothing (panned fully out of view).
-
+    // First pass: each station's best level given the current view/zoom.
+    const desired = this._stations.map((st) => {
       // Candidate levels are those actually visible in the current view.
       const visible = st.levels.filter((lv) => view.intersects(lv.bounds));
-      if (visible.length) {
-        const atOrBelow = visible.filter((lv) => lv.native_zoom <= zoom);
-        // Zoomed in enough for one or more levels: use the finest. Otherwise
-        // (zoomed out past all levels) show the widest visible for context.
-        const chosen = atOrBelow.length
-          ? atOrBelow.reduce((best, lv) => (lv.native_zoom > best.native_zoom ? lv : best))
-          : visible.reduce((best, lv) => (lv.native_zoom < best.native_zoom ? lv : best));
-        active = st.levels.indexOf(chosen);
-      }
+      if (!visible.length) return -1; // panned fully out of view
+      const atOrBelow = visible.filter((lv) => lv.native_zoom <= zoom);
+      // Zoomed in enough for one or more levels: use the finest. Otherwise
+      // (zoomed out past all levels) show the widest visible for context.
+      const chosen = atOrBelow.length
+        ? atOrBelow.reduce((best, lv) => (lv.native_zoom > best.native_zoom ? lv : best))
+        : visible.reduce((best, lv) => (lv.native_zoom < best.native_zoom ? lv : best));
+      return st.levels.indexOf(chosen);
+    });
 
-      if (active !== st.active) {
-        st.active = active;
+    // Second pass: show a single resolution at a time. With multiple overlapping
+    // radars a zoomed-in view would otherwise mix one radar's fine detail with
+    // another's coarse blocks in the same place. Find the finest range in view
+    // and hide any radar coarser than it. Zoomed out, all radars are on the same
+    // wide range so none are hidden (full coverage); over a rural area where only
+    // a coarse radar reaches, that coarse one is the finest present, so it shows.
+    const activeZooms = desired.map((d, i) =>
+      d >= 0 ? this._stations[i].levels[d].native_zoom : -Infinity
+    );
+    const finest = Math.max(...activeZooms);
+    if (finest > -Infinity) {
+      this._stations.forEach((st, i) => {
+        if (desired[i] >= 0 && st.levels[desired[i]].native_zoom < finest) desired[i] = -1;
+      });
+    }
+
+    this._stations.forEach((st, i) => {
+      if (desired[i] !== st.active) {
+        st.active = desired[i];
         changed = true;
       }
     });
@@ -763,7 +779,6 @@ class BomRadarCardEditor extends HTMLElement {
             <option value="esri_topo"${sel(c.base_map, "esri_topo")}>Esri topographic</option>
             <option value="esri_gray"${sel(c.base_map, "esri_gray")}>Esri light grey</option>
             <option value="satellite"${sel(c.base_map, "satellite")}>Satellite</option>
-            <option value="osm"${sel(c.base_map, "osm")}>OpenStreetMap</option>
           </select></div>
         <div class="row"><label>Height</label>
           <input type="text" data-k="height" value="${esc(c.height || "420px")}"></div>
