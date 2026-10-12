@@ -502,17 +502,16 @@ class BomRadarCard extends HTMLElement {
     }
   }
 
-  // The animation timeline is the active (primary) range's own frames, so every
+  // The animation timeline is the currently-shown range's own frames, so every
   // step shows a distinct image. Different ranges are captured at different
   // minute offsets, so animating over the merged union would repeat/blank
-  // frames. Rebuilt whenever the active level changes (e.g. on zoom).
+  // frames. Rebuilt whenever the active level changes (e.g. on zoom). It follows
+  // whichever station is actually on screen (the primary if it is one of them).
   _rebuildTimeline() {
-    let tl = null;
     const stations = this._stations || [];
-    const primary = stations.find((s) => s.role === "primary") || stations[0];
-    if (primary && primary.active >= 0 && primary.levels[primary.active]) {
-      tl = primary.levels[primary.active].sortedTs;
-    }
+    const shown = stations.filter((s) => s.active >= 0 && s.levels[s.active]);
+    const pick = shown.find((s) => s.role === "primary") || shown[0];
+    let tl = pick ? pick.levels[pick.active].sortedTs : null;
     if (!tl || !tl.length) tl = this._globalTimestamps || [];
     this._timestamps = tl;
     this._slider.max = Math.max(0, tl.length - 1);
@@ -522,44 +521,61 @@ class BomRadarCard extends HTMLElement {
     this._slider.value = this._currentIndex;
   }
 
-  // Choose, per station, the finest range level whose coverage still intersects
-  // the current viewport. This gives home-area detail when zoomed in, while a
-  // rural home outside the small radii falls back to the widest range that
-  // reaches it. Returns true if any station's active level changed.
+  // Decide which radar image(s) to show for the current view. The images are
+  // concentric squares centred on each radar site (a smaller range = a smaller
+  // square), so we select by COVERAGE of the viewport, not by how much a square
+  // happens to clip it. This gives a clean, uniform picture at every zoom:
+  //   Mode A - at least one radar has a range whose square fully covers the
+  //     viewport: show just the single finest such image (one radar, one range,
+  //     one capture time). As you zoom in you climb the pyramid the moment each
+  //     finer range can still cover the screen, so there is no mixing of
+  //     resolutions, no blank edges, and nothing blinks on/off between zooms.
+  //   Mode B - no single square covers the viewport (zoomed right out to a
+  //     multi-state view, or a rural spot that falls between radars): show each
+  //     station's widest visible range so together they blanket the area.
+  // Returns true if any station's active level changed.
   _selectLevels() {
     if (!this._stations || !this._map) return false;
     const view = this._map.getBounds();
-    const zoom = this._map.getZoom();
     let changed = false;
 
-    // First pass: each station's best level given the current view/zoom.
-    const desired = this._stations.map((st) => {
-      // Candidate levels are those actually visible in the current view.
-      const visible = st.levels.filter((lv) => view.intersects(lv.bounds));
-      if (!visible.length) return -1; // panned fully out of view
-      const atOrBelow = visible.filter((lv) => lv.native_zoom <= zoom);
-      // Zoomed in enough for one or more levels: use the finest. Otherwise
-      // (zoomed out past all levels) show the widest visible for context.
-      const chosen = atOrBelow.length
-        ? atOrBelow.reduce((best, lv) => (lv.native_zoom > best.native_zoom ? lv : best))
-        : visible.reduce((best, lv) => (lv.native_zoom < best.native_zoom ? lv : best));
-      return st.levels.indexOf(chosen);
+    // Levels are ordered widest-range first (index 0 = widest). Per station,
+    // find the widest range merely visible (the Mode B fallback) and the finest
+    // range whose square fully contains the viewport (the Mode A candidate).
+    const perStation = this._stations.map((st) => {
+      let visible = -1; // widest range intersecting the view
+      let covering = -1; // finest range whose square contains the whole view
+      st.levels.forEach((lv, idx) => {
+        if (visible < 0 && view.intersects(lv.bounds)) visible = idx;
+        // Widest -> finest, so the last match left standing is the finest that
+        // still covers the view (a wider square always covers it too).
+        if (lv.bounds.contains(view)) covering = idx;
+      });
+      return { visible, covering };
     });
 
-    // Second pass: show a single resolution at a time. With multiple overlapping
-    // radars a zoomed-in view would otherwise mix one radar's fine detail with
-    // another's coarse blocks in the same place. Find the finest range in view
-    // and hide any radar coarser than it. Zoomed out, all radars are on the same
-    // wide range so none are hidden (full coverage); over a rural area where only
-    // a coarse radar reaches, that coarse one is the finest present, so it shows.
-    const activeZooms = desired.map((d, i) =>
-      d >= 0 ? this._stations[i].levels[d].native_zoom : -Infinity
-    );
-    const finest = Math.max(...activeZooms);
-    if (finest > -Infinity) {
-      this._stations.forEach((st, i) => {
-        if (desired[i] >= 0 && st.levels[desired[i]].native_zoom < finest) desired[i] = -1;
+    let desired;
+    if (perStation.some((p) => p.covering >= 0)) {
+      // Mode A: the globally finest covering range wins, so overlapping radars
+      // never mix resolutions. Ties favour the primary radar's home-centred
+      // detail. Every other station is hidden - the winner covers the whole view.
+      let best = -1;
+      let bestRange = Infinity;
+      perStation.forEach((p, i) => {
+        if (p.covering < 0) return;
+        const range = this._stations[i].levels[p.covering].range_km;
+        const primary = this._stations[i].role === "primary";
+        const bestPrimary = best >= 0 && this._stations[best].role === "primary";
+        if (range < bestRange || (range === bestRange && primary && !bestPrimary)) {
+          bestRange = range;
+          best = i;
+        }
       });
+      desired = perStation.map((p, i) => (i === best ? p.covering : -1));
+    } else {
+      // Mode B: nobody covers the view - show each station's widest visible range
+      // for maximum combined coverage (full national view / rural fallback).
+      desired = perStation.map((p) => p.visible);
     }
 
     this._stations.forEach((st, i) => {

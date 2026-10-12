@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. Older releases are in [CHANGELOG-ARCHIVE.md](CHANGELOG-ARCHIVE.md).
 
+## [Unreleased]
+
+### Fixed
+
+- **Radar vanishing, reappearing or staying blocky as you zoom**: the card chose each radar range by whether its square merely *touched* the view, then drew only that one level. If your home sat off-centre from the radar, a fine range could clip the view and paint only a sliver (the rest of the screen went blank), and with two overlapping radars one could blank the other entirely at certain zooms - so radar disappeared at one zoom and came back at another, or stayed low-resolution however far you zoomed. The card now selects by **coverage**: it shows the single finest range whose square fully covers the viewport (climbing 512 → 256 → 128 → 64 km as you zoom in), and only falls back to showing every radar's widest range when no single range can cover the view (the zoomed-right-out national view). One radar, one range, one capture time on screen at a time - no mixed resolutions, no blank edges, no blink on/off between zoom levels.
+
 ## [1.1.4] - 2026-10-12
 
 ### Fixed
