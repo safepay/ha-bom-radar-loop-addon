@@ -21,9 +21,10 @@ and the card JS is shipped and loaded verbatim (no bundler, no transpile).
 
 ## Workflow rules (read first)
 
-- **Branch → PR → merge to `main`.** Don't push directly to `main` for feature
-  or fix work. `main` is what the HA add-on store serves to every user — treat
-  it as production. (`CLAUDE.md`-only doc tweaks are the exception.)
+- **Use a pull request — always the default.** Branch → PR → merge to `main`;
+  do not push directly to `main`. `main` is what the HA add-on store serves to
+  every user, so an un-reviewed push ships straight to production. A direct push
+  happens only when the maintainer explicitly okays that one change.
 - **Never bump the version in a PR.** Several PRs merge to `main` with the
   version untouched, then a release is cut from the **Actions → Release**
   workflow (`workflow_dispatch`, choose patch/minor/major). See
