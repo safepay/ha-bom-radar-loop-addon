@@ -106,7 +106,8 @@ class BomRadarCard extends HTMLElement {
   setConfig(config) {
     this._config = Object.assign(
       {
-        title: "BoM Radar",
+        // title is intentionally NOT defaulted - omitting it from the config
+        // means no card header (removing `title:` from YAML removes the header).
         manifest: "/local/bom_radar/radar_manifest.json",
         base_map: "esri",
         height: "420px",
@@ -125,6 +126,9 @@ class BomRadarCard extends HTMLElement {
     this._opacity = Number(this._config.opacity);
     this._delay = Number(this._config.frame_delay);
     this._lastDelay = Number(this._config.last_frame_delay);
+    // Reflect title/opacity changes live if the card is already built.
+    if (this._card) this._card.header = this._config.title || undefined;
+    if (this._mapEl) this._mapEl.style.flexBasis = this._config.height;
     // HA normally calls setConfig before attaching, but if the element is
     // already connected (e.g. a reconfigure), build now too.
     if (this.isConnected && !this._built) this._build();
@@ -155,16 +159,19 @@ class BomRadarCard extends HTMLElement {
     this._built = true;
 
     const card = document.createElement("ha-card");
+    card.className = "bom-radar-ha-card";
     if (this._config.title) card.header = this._config.title;
+    this._card = card;
 
     const content = document.createElement("div");
     content.className = "bom-radar-content";
 
     const mapEl = document.createElement("div");
     mapEl.className = "bom-radar-map";
-    mapEl.style.height = this._config.height;
+    // flex-basis is the masonry height; in a sections grid the map grows/shrinks
+    // to fill the resized cell (floored by min-height in the CSS below).
+    mapEl.style.flexBasis = this._config.height;
     mapEl.style.width = "100%";
-    mapEl.style.borderRadius = "0";
 
     const controls = document.createElement("div");
     controls.className = "bom-radar-controls";
@@ -174,17 +181,26 @@ class BomRadarCard extends HTMLElement {
       <span class="bom-radar-time">--:--</span>
     `;
 
-    const legend = document.createElement("img");
+    const legend = document.createElement("div");
     legend.className = "bom-radar-legend";
-    legend.alt = "Rainfall intensity legend";
     legend.style.display = "none";
+    legend.innerHTML = `
+      <span class="bom-radar-legend-cap">Light</span>
+      <img class="bom-radar-legend-bar" alt="Rainfall intensity" />
+      <span class="bom-radar-legend-cap">Heavy</span>
+    `;
 
     const style = document.createElement("style");
     style.textContent = `
-      .bom-radar-content { padding: 0 0 8px 0; }
-      .bom-radar-map { background: var(--card-background-color, #222); }
+      /* Fill the card so the map resizes with the (sections) grid cell, while
+         flex-basis (set inline from the height option) is the masonry height. */
+      bom-radar-card { display: block; height: 100%; }
+      .bom-radar-ha-card { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+      .bom-radar-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 0 8px 0; }
+      .bom-radar-map { flex: 1 1 auto; min-height: 180px; background: var(--card-background-color, #222); }
       .bom-radar-map .bom-radar-frame { image-rendering: auto; }
       .bom-radar-controls {
+        flex: 0 0 auto;
         display: flex; align-items: center; gap: 10px;
         padding: 8px 14px 2px 14px;
       }
@@ -200,7 +216,17 @@ class BomRadarCard extends HTMLElement {
         font-variant-numeric: tabular-nums;
         color: var(--primary-text-color);
       }
-      .bom-radar-legend { display: block; width: calc(100% - 28px); margin: 4px 14px 0 14px; height: 10px; }
+      .bom-radar-legend {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+        margin: 6px 14px 0 14px;
+      }
+      .bom-radar-legend-bar {
+        flex: 1 1 auto; height: 8px; border-radius: 4px; display: block;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+      }
+      .bom-radar-legend-cap {
+        flex: 0 0 auto; font-size: 11px; color: var(--secondary-text-color);
+      }
       .bom-radar-error { padding: 16px; color: var(--error-color, #db4437); }
       .bom-radar-home {
         width: 18px; height: 18px; border-radius: 50% 50% 50% 0;
@@ -275,6 +301,7 @@ class BomRadarCard extends HTMLElement {
 
     this._mapEl = mapEl;
     this._legendEl = legend;
+    this._legendImg = legend.querySelector(".bom-radar-legend-bar");
     this._playBtn = controls.querySelector(".bom-radar-play");
     this._slider = controls.querySelector(".bom-radar-slider");
     this._timeLabel = controls.querySelector(".bom-radar-time");
@@ -344,6 +371,8 @@ class BomRadarCard extends HTMLElement {
     this._rebuildTimeline();
     if (this._timestamps && this._timestamps.length) {
       this._showIndex(this._currentIndex ?? this._timestamps.length - 1);
+      // Start the animation automatically once the map is sized and has frames.
+      if (this._config.autoplay) this._play();
     }
   }
 
@@ -462,9 +491,9 @@ class BomRadarCard extends HTMLElement {
     this._updateHomeMarker();
 
     // Legend.
-    if (this._config.show_legend && this._manifest.legend_url) {
-      this._legendEl.src = this._resolveUrl(this._manifest.legend_url) + `?t=${Date.now()}`;
-      this._legendEl.style.display = "block";
+    if (this._config.show_legend && this._manifest.legend_url && this._legendImg) {
+      this._legendImg.src = this._resolveUrl(this._manifest.legend_url) + `?t=${Date.now()}`;
+      this._legendEl.style.display = "flex";
     } else {
       this._legendEl.style.display = "none";
     }
@@ -615,6 +644,7 @@ class BomRadarCard extends HTMLElement {
   }
 
   _play() {
+    if (this._playing) return; // already running - keep a single timer
     if (!this._timestamps || this._timestamps.length < 2) return;
     this._playing = true;
     this._playBtn.innerHTML = "&#10073;&#10073;"; // pause glyph
@@ -648,8 +678,127 @@ class BomRadarCard extends HTMLElement {
     return Math.ceil(h / 50) + 1;
   }
 
+  // Sections dashboard: make the card resizable in both dimensions (drag the
+  // grid handles). Rows set the height, columns the width, each clamped.
+  getGridOptions() {
+    const rows = Math.max(3, Math.round((parseInt(this._config?.height, 10) || 420) / 56));
+    return {
+      rows,
+      min_rows: 3,
+      max_rows: 20,
+      columns: 12,
+      min_columns: 6,
+      max_columns: 12,
+    };
+  }
+
+  // Older HA layout API (pre-getGridOptions); harmless where unused.
+  getLayoutOptions() {
+    const opts = this.getGridOptions();
+    return {
+      grid_rows: opts.rows,
+      grid_min_rows: opts.min_rows,
+      grid_max_rows: opts.max_rows,
+      grid_columns: 4,
+      grid_min_columns: 2,
+      grid_max_columns: 4,
+    };
+  }
+
+  static getConfigElement() {
+    return document.createElement("bom-radar-card-editor");
+  }
+
   static getStubConfig() {
-    return { title: "BoM Radar", manifest: "/local/bom_radar/radar_manifest.json" };
+    return { manifest: "/local/bom_radar/radar_manifest.json" };
+  }
+}
+
+// Visual configuration editor shown in the Lovelace card editor. Plain inputs
+// that emit `config-changed` so the card is no longer YAML-only.
+class BomRadarCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = Object.assign({}, config);
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+  }
+
+  _emit() {
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: this._config },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  _render() {
+    if (!this._config) return;
+    const c = this._config;
+    const esc = (v) => (v == null ? "" : String(v)).replace(/"/g, "&quot;");
+    const sel = (v, opt) => (v === opt ? " selected" : "");
+    this.innerHTML = `
+      <style>
+        .bre { padding: 12px 8px; display: flex; flex-direction: column; gap: 12px; }
+        .bre .row { display: flex; align-items: center; gap: 12px; }
+        .bre label { flex: 1 1 auto; color: var(--primary-text-color); }
+        .bre input, .bre select { flex: 0 0 auto; }
+        .bre input[type="text"], .bre input[type="number"], .bre select {
+          min-width: 160px; padding: 6px 8px;
+          background: var(--secondary-background-color); color: var(--primary-text-color);
+          border: 1px solid var(--divider-color); border-radius: 4px;
+        }
+        .bre .hint { color: var(--secondary-text-color); font-size: 12px; margin-top: -6px; }
+      </style>
+      <div class="bre">
+        <div class="row"><label>Title (blank for none)</label>
+          <input type="text" data-k="title" value="${esc(c.title)}"></div>
+        <div class="row"><label>Base map</label>
+          <select data-k="base_map">
+            <option value="esri"${sel(c.base_map, "esri")}>Esri street</option>
+            <option value="esri_topo"${sel(c.base_map, "esri_topo")}>Esri topographic</option>
+            <option value="esri_gray"${sel(c.base_map, "esri_gray")}>Esri light grey</option>
+            <option value="satellite"${sel(c.base_map, "satellite")}>Satellite</option>
+            <option value="osm"${sel(c.base_map, "osm")}>OpenStreetMap</option>
+          </select></div>
+        <div class="row"><label>Height</label>
+          <input type="text" data-k="height" value="${esc(c.height || "420px")}"></div>
+        <div class="hint">e.g. 420px. In a sections dashboard you can also drag to resize.</div>
+        <div class="row"><label>Default zoom (blank = fit radars)</label>
+          <input type="number" data-k="default_zoom" min="4" max="12" value="${esc(c.default_zoom)}"></div>
+        <div class="row"><label>Opacity</label>
+          <input type="number" data-k="opacity" min="0.1" max="1" step="0.05" value="${esc(c.opacity == null ? 0.85 : c.opacity)}"></div>
+        <div class="row"><label>Autoplay</label>
+          <input type="checkbox" data-k="autoplay" ${c.autoplay !== false ? "checked" : ""}></div>
+        <div class="row"><label>Show home marker</label>
+          <input type="checkbox" data-k="show_home" ${c.show_home !== false ? "checked" : ""}></div>
+        <div class="row"><label>Show legend</label>
+          <input type="checkbox" data-k="show_legend" ${c.show_legend !== false ? "checked" : ""}></div>
+      </div>
+    `;
+    this.querySelectorAll("[data-k]").forEach((el) => {
+      el.addEventListener("change", () => this._onChange(el));
+    });
+  }
+
+  _onChange(el) {
+    const key = el.getAttribute("data-k");
+    const cfg = Object.assign({}, this._config);
+    if (el.type === "checkbox") {
+      cfg[key] = el.checked;
+    } else if (el.type === "number") {
+      cfg[key] = el.value === "" ? null : Number(el.value);
+    } else {
+      const v = el.value.trim();
+      if (v === "") delete cfg[key]; // blank removes the option (e.g. title)
+      else cfg[key] = v;
+    }
+    this._config = cfg;
+    this._emit();
   }
 }
 
@@ -659,6 +808,9 @@ class BomRadarCard extends HTMLElement {
 // and against listing the card twice in the picker.
 if (!customElements.get("bom-radar-card")) {
   customElements.define("bom-radar-card", BomRadarCard);
+  if (!customElements.get("bom-radar-card-editor")) {
+    customElements.define("bom-radar-card-editor", BomRadarCardEditor);
+  }
 
   window.customCards = window.customCards || [];
   if (!window.customCards.some((card) => card.type === "bom-radar-card")) {
@@ -667,6 +819,7 @@ if (!customElements.get("bom-radar-card")) {
       name: "BoM Radar Card",
       description: "Interactive, pannable Australian BoM weather radar with time animation.",
       preview: false,
+      configurable: true,
       documentationURL: "https://github.com/safepay/ha-bom-radar-loop-addon",
     });
   }

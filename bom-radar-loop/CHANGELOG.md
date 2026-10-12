@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Visual card editor**: the card now ships a config editor (title, base map, height, default zoom, opacity, autoplay, home marker, legend), so it is no longer YAML-only and the "Visual editor not supported" notice is gone.
+- **Resizable in both dimensions**: the card fills its grid cell and reports grid options, so in a sections dashboard you can drag to resize its height and width; the `height` option remains the default/masonry height.
+
+### Changed
+
+- **Animation starts automatically** once the map is sized and has frames (no need to press play).
+- **Title is optional**: removing `title:` from the card config now removes the header (it is no longer defaulted to "BoM Radar").
+- **Legend tidied up**: the rainfall colour bar is now rounded with "Light"/"Heavy" captions and aligned with the controls.
+
 ### Fixed
 
 - **Radar animation flickered and showed too few distinct frames**: ranges are captured at different minute offsets, but the add-on forced every range onto one shared 5-timestamp window (dropping most of each range's frames) and the card animated over the merged union (so frames blanked on/off and repeated). Now each range keeps its own most-recent 5 frames, and the card animates over the active range's own frames - five distinct images, no flicker.
