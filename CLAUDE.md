@@ -32,9 +32,12 @@ and the card JS is shipped and loaded verbatim (no bundler, no transpile).
 - **Two version sources, kept in sync by the release workflow only:** `version`
   in `bom-radar-loop/config.json` and `VERSION` in `bom_radar_downloader.py`.
   Don't edit either by hand.
-- **Changelog:** add entries under `## [Unreleased]` in
+- **Changelog:** add entries under a `## [Unreleased]` heading at the top of
   `bom-radar-loop/CHANGELOG.md` (it lives inside the add-on folder on purpose,
-  so HA shows it in the update dialog). The release workflow stamps the heading.
+  so HA shows it in the update dialog). Create that heading yourself if it's
+  missing — the release workflow renames `[Unreleased]` to the version on
+  release and does **not** leave a fresh one behind, so a shipped release never
+  leads with an empty "Unreleased" section in HA's update dialog.
 
 ## Keep these in sync when you change one
 
