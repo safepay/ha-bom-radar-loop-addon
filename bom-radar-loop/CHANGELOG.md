@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-12
+
 ### Added
 
 - **Visual card editor**: the card now ships a config editor (title, base map, height, default zoom, opacity, autoplay, home marker, legend), so it is no longer YAML-only and the "Visual editor not supported" notice is gone.
