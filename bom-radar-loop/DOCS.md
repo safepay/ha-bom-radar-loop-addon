@@ -37,7 +37,7 @@ Then hard-refresh the browser once.
 >
 > **Why the loader is still shipped.** If your resources are managed in YAML (read-only to the API), register `bom-radar-loader.js` instead of the card: it reads the add-on version and imports the matching card, so updates are still picked up automatically. Registering `/local/bom_radar/bom-radar-card.js` directly also works, but then you must add `?v=N` and bump it after each update to beat the browser cache.
 
-**How it behaves:** zoom in and the card switches to the finer radar ranges around your home; zoom out for the wider picture. A home marker is placed from your Home Assistant location automatically. Play/pause and a timeline let you scrub through the frames.
+**How it behaves:** zoom in and the card switches to the finer radar ranges around your home; zoom out for the wider picture. A home marker is placed from your Home Assistant location automatically. Play/pause and a timeline let you scrub through the frames. The crosshair button under the zoom control recentres the map to its starting view (your home/coverage centre and `default_zoom`).
 
 **Card options** (all optional):
 
