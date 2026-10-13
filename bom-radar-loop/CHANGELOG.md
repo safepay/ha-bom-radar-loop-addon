@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. Older releases are in [CHANGELOG-ARCHIVE.md](CHANGELOG-ARCHIVE.md).
 
-## [Unreleased]
+## [1.1.6] - 2026-10-13
 
 ### Added
 
@@ -28,15 +28,4 @@ All notable changes to this project will be documented in this file. Older relea
 ### Changed
 
 - **Card tidy-up**: removed the broken Carto base maps (`voyager`/`light`/`dark`, which needed an API key) and deduplicated the map CSS. Base map options are now `esri`, `esri_topo`, `esri_gray`, `satellite`, and `osm` (YAML only).
-
-## [1.1.3] - 2026-10-12
-
-### Added
-
-- **Auto cache-busting loader**: the add-on now ships `bom-radar-loader.js`. Register it as your Lovelace resource (instead of the card directly) and you never have to add/bump a `?v=` by hand again - the loader reads the add-on version from the manifest and loads the matching card, so updates are picked up automatically (the HACS "stamp" trick, without HACS).
-
-### Fixed
-
-- **Mixed radar resolutions when zoomed in with multiple radars**: overlapping radars drew one radar's fine detail and another's coarse blocks in the same place. The card now shows a single resolution at a time - it finds the finest range in view and hides any coarser radar - so zooming into your home area shows just that radar's detail, while a zoomed-out view still shows all radars for coverage.
-- **OpenStreetMap base map removed from the editor**: OSM blocks embedded use ("Access blocked"), so it is no longer offered in the visual editor (the Esri options and satellite work; OSM remains available via YAML for networks that allow it).
 

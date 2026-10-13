@@ -20,7 +20,7 @@ import pytz
 import math
 from radar_metadata import RADAR_METADATA
 
-VERSION = '1.1.5'
+VERSION = '1.1.6'
 
 # --- Image pipeline constants ---
 RADAR_IMAGE_SIZE = 512          # BOM radar PNGs are always 512x512
